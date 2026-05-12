@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ripple</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5E9C0; --card: #EDD98A; --card-border: #D4C070;
+    --accent: #5B9BD5; --accent-dim: #5B9BD520; --text: #2C2C2C;
+    --muted: #8A8070; --pill: #E8D478; --warning: #D94F4F;
+    --teal: #5AF5C8; --pink: #F55AC8; --blue: #5AC8F5;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#E8D070; display:flex; justify-content:center; align-items:center; min-height:100vh; font-family:'DM Sans',sans-serif; overflow:hidden; }
+  .phone { width:390px; height:844px; background:var(--bg); border-radius:44px; overflow:hidden; position:relative; box-shadow:0 60px 140px rgba(0,0,0,0.9),0 0 0 1px #1E1E2E,inset 0 1px 0 #2a2a3a; display:flex; flex-direction:column; }
+  .screen { position:absolute; inset:0; display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity 0.4s ease; overflow:hidden; }
+  .screen.active { opacity:1; pointer-events:all; }
+  .scroll-content { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .scroll-content::-webkit-scrollbar { display:none; }
+  .progress-bar { display:flex; gap:5px; padding:56px 28px 0; }
+  .progress-seg { height:3px; border-radius:2px; background:var(--card-border); transition:all 0.4s ease; flex:1; }
+  .progress-seg.done { background:var(--accent); }
+  .progress-seg.active { background:var(--accent); flex:2; }
+  .pad { padding:28px; }
+  .step-label { font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; font-weight:600; margin-bottom:12px; }
+  h1.screen-title { font-family:'Playfair Display',serif; font-size:26px; color:var(--text); line-height:1.25; margin-bottom:8px; }
+  .screen-sub { font-size:15px; color:var(--muted); line-height:1.6; margin-bottom:32px; }
+  .btn-primary { width:100%; padding:17px; border-radius:16px; border:none; background:var(--accent); color:#FFFFFF; font-size:16px; font-weight:700; font-family:'DM Sans',sans-serif; cursor:pointer; transition:all 0.2s ease; }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 30px rgba(91,155,213,0.4); }
+  .btn-primary:disabled { background:var(--pill); color:var(--muted); cursor:not-allowed; transform:none; box-shadow:none; }
+  .bottom-area { padding:16px 28px 36px; background:var(--bg); }
+  .ripple-bg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:0; touch-action:none; }
+  .ripple-circle { position:absolute; border-radius:50%; border:1px solid rgba(91,155,213,0.15); transform:translate(-50%,-50%); animation:rippleExpand 4s ease-out infinite; }
+  .ripple-circle:nth-child(1){width:200px;height:200px;animation-delay:0s}
+  .ripple-circle:nth-child(2){width:350px;height:350px;animation-delay:1s}
+  .ripple-circle:nth-child(3){width:500px;height:500px;animation-delay:2s}
+  .ripple-circle:nth-child(4){width:700px;height:700px;animation-delay:3s}
+  @keyframes rippleExpand{0%{opacity:0.6;transform:translate(-50%,-50%) scale(0.8)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.2)}}
+  /* LOGIN */
+  #s-login{background:var(--bg);justify-content:space-between;z-index:100}
+  .login-top{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 32px}
+  .login-logo{font-family:'Playfair Display',serif;font-size:42px;color:var(--accent);margin-bottom:12px}
+  .login-tagline{font-size:14px;color:var(--muted);margin-bottom:48px;font-style:italic}
+  .login-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:10px}
+  .login-error{font-size:13px;color:var(--warning);margin-top:10px;min-height:20px}
+  /* S1 */
+  #s1{background:var(--bg);justify-content:space-between}
+  .s1-top{padding:72px 32px 0;flex:1;display:flex;flex-direction:column;justify-content:center}
+  .ripple-logo{font-family:'Playfair Display',serif;font-size:42px;color:var(--accent);margin-bottom:48px}
+  .opening-text{font-size:17px;color:var(--text);line-height:1.75;margin-bottom:32px;font-weight:300}
+  .opening-text em{color:var(--accent);font-style:normal;font-weight:500}
+  .thanks-line{font-size:13px;color:var(--muted);margin-bottom:40px;font-style:italic}
+  .s1-content{position:relative;z-index:1}
+  /* PILLS */
+  .pill-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:32px}
+  .pill{padding:11px 18px;border-radius:100px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;transition:all 0.15s ease;font-family:'DM Sans',sans-serif}
+  .pill.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+  /* TIME SLOTS */
+  .time-slots{display:flex;flex-direction:column;gap:10px;margin-bottom:32px}
+  .time-slot{padding:16px 20px;border-radius:14px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;transition:all 0.15s;font-family:'DM Sans',sans-serif;text-align:left;display:flex;align-items:center;gap:10px}
+  .time-slot.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+  .check{font-size:13px;opacity:0;transition:opacity 0.15s}
+  .time-slot.selected .check{opacity:1}
+  /* FEELING */
+  .feeling-options{display:flex;flex-direction:column;gap:10px;margin-bottom:32px}
+  .feeling-opt{padding:18px 20px;border-radius:16px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;transition:all 0.2s;font-family:'DM Sans',sans-serif;text-align:left}
+  .feeling-opt:hover{border-color:#444;transform:translateX(3px)}
+  .feeling-opt.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);transform:translateX(6px)}
+  /* INPUT */
+  .text-input{width:100%;padding:18px 20px;border-radius:16px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:17px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color 0.15s;margin-bottom:32px}
+  .text-input:focus{border-color:var(--accent)}
+  .text-input::placeholder{color:var(--muted)}
+  /* LOADING */
+  #s-loading{background:var(--bg);align-items:center;justify-content:center}
+  .loading-content{text-align:center}
+  .loading-icon{font-size:48px;margin-bottom:24px;display:block;animation:spin 3s linear infinite}
+  @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+  .loading-title{font-family:'Playfair Display',serif;font-size:24px;color:var(--text);margin-bottom:8px}
+  .loading-sub{font-size:14px;color:var(--muted);margin-bottom:32px}
+  .dots{display:flex;gap:8px;justify-content:center}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:dotPulse 1.2s ease-in-out infinite}
+  .dot:nth-child(2){animation-delay:0.2s}
+  .dot:nth-child(3){animation-delay:0.4s}
+  @keyframes dotPulse{0%,100%{opacity:0.2;transform:scale(0.8)}50%{opacity:1;transform:scale(1.1)}}
+  /* ACTION */
+  #s-action{justify-content:space-between}
+  .action-greeting{padding:56px 28px 0}
+  .action-emoji{font-size:40px;margin-bottom:16px;display:block}
+  .action-cards{display:flex;flex-direction:column;gap:12px;padding:24px 28px 0}
+  .action-card{padding:20px;border-radius:18px;border:1.5px solid var(--card-border);background:var(--card);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:16px}
+  .action-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .action-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+  .action-card-icon{width:44px;height:44px;border-radius:12px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .action-card-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px}
+  .action-card.selected .action-card-title{color:var(--accent)}
+  .action-card-desc{font-size:12px;color:var(--muted);line-height:1.5}
+  /* MAIN APP */
+  #s-main{flex-direction:column}
+  .top-bar{padding:52px 20px 16px;background:var(--bg);border-bottom:1px solid var(--card-border)}
+  .top-bar-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .top-greeting{font-family:'Playfair Display',serif;font-size:24px;color:var(--text)}
+  .streak-badge{display:flex;align-items:center;gap:6px;background:var(--accent-dim);border:1px solid rgba(200,245,90,0.2);border-radius:100px;padding:6px 12px}
+  .streak-badge-num{font-size:14px;font-weight:700;color:var(--accent)}
+  .streak-badge-label{font-size:11px;color:var(--accent)}
+  .tab-bar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+  .tab-bar::-webkit-scrollbar{display:none}
+  .tab-btn{padding:8px 14px;border-radius:100px;border:1.5px solid transparent;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;transition:all 0.2s;background:none;color:var(--muted);flex-shrink:0}
+  .tab-btn.active{background:var(--accent-dim);border-color:rgba(200,245,90,0.3);color:var(--accent)}
+  .tab-btn.locked{color:#333;cursor:not-allowed}
+  .tab-btn.locked::after{content:' 🔒';font-size:10px}
+  .main-content{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:none}
+  .main-content::-webkit-scrollbar{display:none}
+  /* DAY SIM */
+  .day-sim{background:var(--card);border:1.5px solid var(--card-border);border-radius:14px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+  .day-sim-label{font-size:11px;color:var(--muted)}
+  .day-sim-controls{display:flex;align-items:center;gap:12px}
+  .day-sim-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif}
+  .day-sim-num{font-size:16px;font-weight:700;color:var(--accent);min-width:24px;text-align:center}
+  /* CARDS */
+  .wellbeing-card{background:linear-gradient(135deg,#EAF4FF,#D8EAF8);border:1.5px solid rgba(200,245,90,0.2);border-radius:20px;padding:20px;margin-bottom:14px;cursor:pointer;transition:all 0.2s}
+  .wellbeing-card:hover{transform:translateY(-2px);border-color:rgba(200,245,90,0.4)}
+  .wc-label{font-size:10px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+  .wc-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--text);margin-bottom:6px}
+  .wc-sub{font-size:13px;color:var(--muted);line-height:1.5}
+  .locked-section{background:var(--card);border:1.5px dashed var(--card-border);border-radius:20px;padding:28px 20px;margin-bottom:14px;text-align:center}
+  .locked-icon{font-size:28px;margin-bottom:12px}
+  .locked-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--muted);margin-bottom:8px}
+  .locked-sub{font-size:13px;color:#444;line-height:1.6}
+  .locked-progress{margin-top:16px;height:4px;background:var(--card-border);border-radius:2px;overflow:hidden}
+  .locked-progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.5s ease}
+  .inner-ripple-unlock{background:linear-gradient(135deg,#EAF4FF,#D8EAF8);border:1.5px solid rgba(200,245,90,0.3);border-radius:20px;padding:24px 20px;margin-bottom:14px;text-align:center}
+  .ir-unlock-emoji{font-size:36px;margin-bottom:12px}
+  .ir-unlock-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--accent);margin-bottom:8px}
+  .ir-unlock-sub{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+  .task-card{background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;padding:18px 20px;margin-bottom:14px}
+  .task-card-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .task-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#FDFBF3;flex-shrink:0}
+  .task-name{font-size:14px;font-weight:600;color:var(--text)}
+  .task-relation{font-size:12px;color:var(--muted)}
+  .task-text{font-size:15px;color:var(--text);line-height:1.5;margin-bottom:14px;font-style:italic}
+  .task-meta{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .got-you-btn{width:100%;padding:13px;border-radius:12px;border:none;background:rgba(90,245,200,0.12);color:var(--teal);font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s}
+  .got-you-btn:hover{background:rgba(90,245,200,0.2)}
+  .got-you-btn.done{background:rgba(90,245,200,0.06);color:#333;cursor:not-allowed}
+  .post-task-card{background:var(--card);border:1.5px solid rgba(200,245,90,0.2);border-radius:20px;padding:20px;margin-bottom:14px}
+  .post-task-label{font-size:11px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;font-weight:700;margin-bottom:10px}
+  .post-task-title{font-family:'Playfair Display',serif;font-size:17px;color:var(--text);margin-bottom:6px}
+  .post-task-sub{font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+  .post-task-input{width:100%;padding:14px 16px;border-radius:12px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;resize:none;min-height:80px;transition:border-color 0.15s}
+  .post-task-input:focus{border-color:var(--accent)}
+  .post-task-input::placeholder{color:var(--muted)}
+  .post-task-btn{width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#FDFBF3;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:12px;transition:all 0.2s}
+  .post-task-btn:disabled{background:var(--pill);color:var(--muted);cursor:not-allowed}
+  .confirmed-banner{background:linear-gradient(135deg,#D8F4EA,#C8EAD8);border:1.5px solid rgba(90,245,200,0.3);border-radius:16px;padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;gap:14px}
+  .confirmed-icon{font-size:28px}
+  .confirmed-title{font-size:14px;font-weight:600;color:var(--teal)}
+  .confirmed-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .restriction-banner{background:linear-gradient(135deg,#FAE8E8,#F0D8D8);border:1.5px solid rgba(245,90,90,0.3);border-radius:16px;padding:16px 20px;margin-bottom:14px}
+  .rb-title{font-size:14px;font-weight:600;color:var(--warning);margin-bottom:4px}
+  .rb-sub{font-size:12px;color:var(--muted);line-height:1.5}
+  .event-card{background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;padding:18px 20px;margin-bottom:14px;cursor:pointer;transition:all 0.15s}
+  .event-card:hover{transform:translateY(-2px)}
+  .ec-meta{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px}
+  .ec-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--text);margin-bottom:4px}
+  .ec-location{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .ec-footer{display:flex;align-items:center;justify-content:space-between}
+  .ec-badge{padding:4px 10px;border-radius:100px;font-size:11px;font-weight:700;white-space:nowrap}
+  .avatar-stack{display:flex;align-items:center}
+  .avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--card);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#FDFBF3;margin-left:-8px}
+  .avatar:first-child{margin-left:0}
+  .notice-card{background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;padding:18px 20px;margin-bottom:14px;cursor:pointer;transition:all 0.15s}
+  .notice-card:hover{border-color:#444;transform:translateY(-2px)}
+  .nc-label{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+  .nc-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+  .nc-sub{font-size:13px;color:var(--muted)}
+  .refresh-note{margin:4px 0 14px;padding:14px;border-radius:14px;background:var(--accent-dim);border:1px solid rgba(200,245,90,0.15)}
+  .refresh-note p{font-size:13px;color:var(--accent);line-height:1.5}
+  /* NAV */
+  .nav-bar{display:flex;border-top:1px solid var(--card-border);background:var(--card);padding:12px 0 28px}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 0}
+  .nav-icon{font-size:18px;transition:color 0.15s}
+  .nav-label{font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;transition:color 0.15s}
+  .nav-item.active .nav-icon,.nav-item.active .nav-label{color:var(--accent)}
+  .nav-item:not(.active) .nav-icon,.nav-item:not(.active) .nav-label{color:var(--muted)}
+  /* PROFILE */
+  #s-profile{flex-direction:column}
+  .profile-scroll{flex:1;overflow-y:auto;padding:56px 24px 24px;scrollbar-width:none}
+  .profile-scroll::-webkit-scrollbar{display:none}
+  .profile-name{font-family:'Playfair Display',serif;font-size:28px;color:var(--text);margin-bottom:4px}
+  .profile-tagline{font-size:14px;color:var(--muted);margin-bottom:28px}
+  .stats-row{display:flex;gap:12px;margin-bottom:28px}
+  .stat-card{flex:1;background:var(--card);border:1.5px solid var(--card-border);border-radius:16px;padding:16px 12px;text-align:center}
+  .stat-val{font-size:24px;font-weight:700;color:var(--accent)}
+  .stat-label{font-size:11px;color:var(--muted);margin-top:2px}
+  .section-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px}
+  .interest-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}
+  .interest-pill{padding:8px 14px;border-radius:100px;background:var(--pill);border:1.5px solid var(--card-border);color:var(--text);font-size:13px}
+  .streak-card{background:linear-gradient(135deg,#EAF4FF,#D8EAF8);border:1.5px solid rgba(200,245,90,0.2);border-radius:16px;padding:16px 20px;margin-bottom:28px;display:flex;align-items:center;gap:16px}
+  .streak-num{font-size:36px;font-weight:700;color:var(--accent)}
+  .streak-title{font-size:14px;font-weight:600;color:var(--text)}
+  .streak-sub{font-size:12px;color:var(--muted)}
+
+  /* HABIT SYSTEM */
+  .showed-up-card{background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;padding:18px 20px;margin-bottom:14px;}
+  .showed-up-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .showed-up-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;}
+  .showed-up-num{font-size:32px;font-weight:700;color:var(--accent);font-family:'DM Sans',sans-serif;}
+  .showed-up-sub{font-size:12px;color:var(--muted);line-height:1.5;}
+  .habit-card{background:var(--card);border:1.5px solid var(--card-border);border-radius:16px;padding:16px 18px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .habit-card.completed{border-color:rgba(200,245,90,0.3);background:linear-gradient(135deg,#EAF4FF,#D8EAF8);}
+  .habit-info{flex:1;}
+  .habit-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;}
+  .habit-card.completed .habit-title{color:var(--accent);}
+  .habit-sub{font-size:12px;color:var(--muted);}
+  .habit-check{width:32px;height:32px;border-radius:50%;border:2px solid var(--card-border);background:var(--pill);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;font-size:14px;}
+  .habit-check.done{background:var(--accent);border-color:var(--accent);color:#FDFBF3;}
+  .habit-change-btn{font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;padding:4px 0;text-decoration:underline;}
+  .add-habit-btn{width:100%;padding:13px;border-radius:12px;border:1.5px dashed rgba(200,245,90,0.25);background:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:14px;transition:all 0.2s;}
+  .add-habit-btn:hover{border-color:rgba(200,245,90,0.5);}
+  .add-habit-btn:disabled{color:#333;border-color:#222;cursor:not-allowed;}
+  .reentry-card{background:linear-gradient(135deg,#EAF4FF,#D8EAF8);border:1.5px solid rgba(200,245,90,0.2);border-radius:20px;padding:24px 20px;margin-bottom:14px;text-align:center;}
+  .reentry-emoji{font-size:36px;margin-bottom:12px;}
+  .reentry-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--text);margin-bottom:8px;}
+  .reentry-sub{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;}
+  .reentry-opts{display:flex;flex-direction:column;gap:8px;}
+  .reentry-opt{padding:14px;border-radius:12px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;text-align:left;transition:all 0.2s;}
+  .reentry-opt:hover{border-color:var(--accent);color:var(--accent);}
+  /* CHANGE HABIT MODAL */
+  .modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.7);z-index:500;display:flex;align-items:flex-end;}
+  .modal-sheet{background:var(--card);border-radius:24px 24px 0 0;padding:28px 24px 48px;width:100%;}
+  .modal-title{font-family:'Playfair Display',serif;font-size:22px;color:var(--text);margin-bottom:8px;}
+  .modal-sub{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.5;}
+  .modal-opt{width:100%;padding:16px;border-radius:12px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:15px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;text-align:left;margin-bottom:10px;transition:all 0.2s;}
+  .modal-opt:hover{border-color:var(--accent);color:var(--accent);}
+  .modal-cancel{width:100%;padding:14px;border-radius:12px;border:none;background:none;color:var(--muted);font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:4px;}
+
+  @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .screen.active>*{animation:slideUp 0.4s ease forwards}
+  /* Mobile — full screen, no phone frame */
+  @media(max-width:600px){
+    body{align-items:flex-start;background:var(--bg);}
+    .phone{width:100%;height:100vh;border-radius:0;box-shadow:none;}
+  }
+  /* Desktop — centred phone mockup */
+  @media(min-width:601px){
+    body{background:#1a1a24;min-height:100vh;}
+    .phone{width:390px;height:844px;border-radius:44px;}
+  }
+</style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+  import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAKvcyr3eOdL6mfPtwBkaizIYj3UCNraI",
+    authDomain: "a-thing-feef7.firebaseapp.com",
+    databaseURL: "https://a-thing-feef7-default-rtdb.firebaseio.com",
+    projectId: "a-thing-feef7",
+    storageBucket: "a-thing-feef7.firebasestorage.app",
+    messagingSenderId: "460372237675",
+    appId: "1:460372237675:web:7cacf8c5e00bf83445802e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Map access codes to user IDs
+  const USER_MAP = {
+    '19grevillearoaddwellingup': 'user1',
+    'frankaryagraceoliver': 'user2'
+  };
+
+  // Inner circle map - each user sees the other's tasks
+  const CIRCLE_MAP = {
+    'user1': 'user2',
+    'user2': 'user1'
+  };
+
+  window.firebaseDB = db;
+  window.firebaseRef = ref;
+  window.firebaseSet = set;
+  window.firebaseGet = get;
+  window.firebaseOnValue = onValue;
+  window.firebasePush = push;
+  window.USER_MAP = USER_MAP;
+  window.CIRCLE_MAP = CIRCLE_MAP;
+
+  // Current user ID (set on login)
+  window.currentUserId = null;
+
+  // Post a task to Firebase
+  window.fbPostTask = async function(taskText) {
+    if (!window.currentUserId) return;
+    const taskRef = ref(db, 'tasks/' + window.currentUserId + '/' + Date.now());
+    await set(taskRef, {
+      text: taskText,
+      timestamp: Date.now(),
+      confirmed: false,
+      postedBy: window.currentUserId,
+    });
+  };
+
+  // Get circle member's tasks (real time)
+  window.fbListenToCircleTasks = function(callback) {
+    if (!window.currentUserId) return;
+    const circleId = CIRCLE_MAP[window.currentUserId];
+    const tasksRef = ref(db, 'tasks/' + circleId);
+    onValue(tasksRef, (snapshot) => {
+      const data = snapshot.val();
+      const tasks = data ? Object.entries(data).map(([id, task]) => ({id, ...task})) : [];
+      callback(tasks);
+    });
+  };
+
+  // Claim a task (I've got you)
+  window.fbClaimTask = async function(taskId, postedByUserId) {
+    const claimRef = ref(db, 'tasks/' + postedByUserId + '/' + taskId + '/claimedBy');
+    await set(claimRef, window.currentUserId);
+  };
+
+  // Confirm a task was completed
+  window.fbConfirmTask = async function(taskId, postedByUserId) {
+    const confirmRef = ref(db, 'tasks/' + postedByUserId + '/' + taskId + '/confirmed');
+    await set(confirmRef, true);
+  };
+
+  // Listen to own tasks (to see if someone claimed/confirmed)
+  window.fbListenToMyTasks = function(callback) {
+    if (!window.currentUserId) return;
+    const tasksRef = ref(db, 'tasks/' + window.currentUserId);
+    onValue(tasksRef, (snapshot) => {
+      const data = snapshot.val();
+      const tasks = data ? Object.entries(data).map(([id, task]) => ({id, ...task})) : [];
+      callback(tasks);
+    });
+  };
+
+  console.log('Firebase initialised');
+</script>
+</head>
+<body>
+<div class="phone">
+
+<!-- LOGIN -->
+<div class="screen active" id="s-login">
+  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
+  <div class="login-top" style="position:relative;z-index:1;">
+    <div class="login-logo">Ripple</div>
+    <p class="login-tagline">Start close. Spread far.</p>
+    <p class="login-label">Access code</p>
+    <input type="password" class="text-input" id="login-input" placeholder="Enter your code..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter')checkLogin()" oninput="document.getElementById('login-error').textContent=''">
+    <p class="login-error" id="login-error"></p>
+  </div>
+  <div class="bottom-area" style="position:relative;z-index:1;">
+    <button class="btn-primary" onclick="checkLogin()" ontouchend="checkLogin()">Enter</button>
+  </div>
+</div>
+
+<!-- S1: OPENING -->
+<div class="screen" id="s1">
+  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
+  <div class="s1-top s1-content">
+    <div class="ripple-logo">Ripple</div>
+    <p class="opening-text">I built this app because I felt overwhelmed, stressed, and disconnected — which means others must be feeling the same way. <em>And if others are — maybe you are too.</em><br><br>I don't think this app can cure those feelings. But I believe it can help us move in the right direction, together.</p>
+    <p class="thanks-line">Thanks for showing up.</p>
+  </div>
+  <div class="bottom-area s1-content"><button class="btn-primary" onclick="goTo('s2')">Start your ripple</button></div>
+</div>
+
+<!-- S2: SIMPLE QUESTIONS -->
+<div class="screen" id="s2">
+  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 32px;position:relative;z-index:1;">
+    <div class="ripple-logo" style="font-size:28px;margin-bottom:32px;">Ripple</div>
+    <p style="font-size:19px;color:var(--text);line-height:1.65;font-weight:300;">In order for Ripple to do its thing, we need to ask you some simple questions — <span style="color:var(--accent);font-weight:500;">no wrong answers.</span></p>
+  </div>
+  <div class="bottom-area" style="position:relative;z-index:1;"><button class="btn-primary" onclick="goTo('s-how')">Continue</button></div>
+</div>
+
+<!-- HOW RIPPLE WORKS -->
+<div class="screen" id="s-how">
+  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 32px;position:relative;z-index:1;">
+    <div style="font-size:32px;margin-bottom:28px;">🌊</div>
+    <p style="font-size:12px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:16px;">How Ripple works</p>
+    <h1 style="font-family:'Playfair Display',serif;font-size:28px;color:var(--text);line-height:1.3;margin-bottom:24px;">Help yourself.<br>Help a friend.<br>Help the world.</h1>
+    <p style="font-size:16px;color:var(--muted);line-height:1.75;font-weight:300;">If we can't show up for ourselves, we can't show up for others.</p>
+    <div style="height:16px;"></div>
+    <p style="font-size:16px;color:var(--muted);line-height:1.75;font-weight:300;">If you're going through a tough time, Ripple will bring you back to that first step: <span style="color:var(--text);font-weight:500;">showing up for yourself.</span></p>
+  </div>
+  <div class="bottom-area" style="position:relative;z-index:1;"><button class="btn-primary" onclick="goTo('s3')">I understand</button></div>
+</div>
+
+<!-- S3: GOOD DAY -->
+<div class="screen" id="s3">
+  <div class="progress-bar" id="pb3"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label">Step 1 of 5</p>
+    <h1 class="screen-title">What does a good day look like for you?</h1>
+    <p class="screen-sub">It doesn't have to be perfect, just good.</p>
+    <div class="pill-grid" id="interests-grid"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-s3" disabled onclick="goTo('s4')">Continue</button></div>
+</div>
+
+<!-- S4: TIME -->
+<div class="screen" id="s4">
+  <div class="progress-bar" id="pb4"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label">Step 2 of 5</p>
+    <h1 class="screen-title">When could you create time for yourself?</h1>
+    <p class="screen-sub">Pick your usual windows.</p>
+    <div class="time-slots" id="times-grid"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-s4" disabled onclick="goTo('s5')">Continue</button></div>
+</div>
+
+<!-- S5: LOCATION -->
+<div class="screen" id="s5">
+  <div class="progress-bar" id="pb5"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label">Step 3 of 5</p>
+    <h1 class="screen-title">Where is your community?</h1>
+    <p class="screen-sub">We'll use this to show you what's happening nearby.</p>
+    <input type="text" class="text-input" id="location-input" placeholder="Your suburb..." oninput="checkLocation()">
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-s5" disabled onclick="goTo('s6')">Continue</button></div>
+</div>
+
+<!-- S6: NAME -->
+<div class="screen" id="s6">
+  <div class="progress-bar" id="pb6"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label">Step 4 of 5</p>
+    <h1 class="screen-title">What do your friends call you?</h1>
+    <p class="screen-sub">Just your first name is fine.</p>
+    <input type="text" class="text-input" id="name-input" placeholder="First name..." oninput="checkName()">
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-s6" disabled onclick="goTo('sq1')">Continue</button></div>
+</div>
+
+<!-- QUESTIONNAIRE INTRO -->
+<div class="screen" id="sq-intro">
+  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 32px;position:relative;z-index:1;">
+    <div style="font-size:32px;margin-bottom:24px;">🌿</div>
+    <h1 class="screen-title" id="sq-intro-title">A few more questions, <span id="sq-intro-name"></span></h1>
+    <p class="screen-sub">These help Ripple understand where to show up for you first. No right or wrong answers — just be honest.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:12px;border:1.5px solid var(--card-border);">
+        <span style="font-size:20px;">💪</span><span style="font-size:13px;color:var(--muted);">Body — how you're looking after yourself physically</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:12px;border:1.5px solid var(--card-border);">
+        <span style="font-size:20px;">🧠</span><span style="font-size:13px;color:var(--muted);">Mind — your mental clarity and stillness</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:12px;border:1.5px solid var(--card-border);">
+        <span style="font-size:20px;">❤️</span><span style="font-size:13px;color:var(--muted);">Heart — your connections with others</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card);border-radius:12px;border:1.5px solid var(--card-border);">
+        <span style="font-size:20px;">✨</span><span style="font-size:13px;color:var(--muted);">Soul — your sense of purpose and joy</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-area" style="position:relative;z-index:1;"><button class="btn-primary" onclick="goTo('sq1')">Let's go</button></div>
+</div>
+
+<!-- QUESTIONNAIRE SCREENS (12 questions) -->
+<div class="screen" id="sq1">
+  <div class="progress-bar" id="pbsq1"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C8F55A;">💪 Body · Question 1 of 3</p>
+    <h1 class="screen-title">How have you been sleeping lately?</h1>
+    <p class="screen-sub">Be honest — this helps Ripple show up for you.</p>
+    <div class="feeling-options" id="sq1-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq1" disabled onclick="goTo('sq2')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq2">
+  <div class="progress-bar" id="pbsq2"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C8F55A;">💪 Body · Question 2 of 3</p>
+    <h1 class="screen-title">How often do you move your body in a way that feels good — not just obligation?</h1>
+    <div class="feeling-options" id="sq2-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq2" disabled onclick="goTo('sq3')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq3">
+  <div class="progress-bar" id="pbsq3"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C8F55A;">💪 Body · Question 3 of 3</p>
+    <h1 class="screen-title">How do you go with nourishing your body?</h1>
+    <div class="feeling-options" id="sq3-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq3" disabled onclick="goTo('sq4')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq4">
+  <div class="progress-bar" id="pbsq4"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#5AC8F5;">🧠 Mind · Question 1 of 3</p>
+    <h1 class="screen-title">When did you last have real quiet — no phone, no noise, just you?</h1>
+    <div class="feeling-options" id="sq4-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq4" disabled onclick="goTo('sq5')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq5">
+  <div class="progress-bar" id="pbsq5"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#5AC8F5;">🧠 Mind · Question 2 of 3</p>
+    <h1 class="screen-title">How often do you feel <em style="color:var(--accent);font-style:italic;">good</em> — genuinely, actually good?</h1>
+    <div class="feeling-options" id="sq5-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq5" disabled onclick="goTo('sq6')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq6">
+  <div class="progress-bar" id="pbsq6"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#5AC8F5;">🧠 Mind · Question 3 of 3</p>
+    <h1 class="screen-title">How do you handle stress when it shows up?</h1>
+    <div class="feeling-options" id="sq6-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq6" disabled onclick="goTo('sq7')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq7">
+  <div class="progress-bar" id="pbsq7"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#F55AC8;">❤️ Heart · Question 1 of 3</p>
+    <h1 class="screen-title">When did you last reach out to someone just to check in on them?</h1>
+    <div class="feeling-options" id="sq7-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq7" disabled onclick="goTo('sq8')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq8">
+  <div class="progress-bar" id="pbsq8"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#F55AC8;">❤️ Heart · Question 2 of 3</p>
+    <h1 class="screen-title">When did you last let someone check in on you?</h1>
+    <div class="feeling-options" id="sq8-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq8" disabled onclick="goTo('sq9')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq9">
+  <div class="progress-bar" id="pbsq9"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#F55AC8;">❤️ Heart · Question 3 of 3</p>
+    <h1 class="screen-title">How connected do you feel to the people around you?</h1>
+    <div class="feeling-options" id="sq9-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq9" disabled onclick="goTo('sq10')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq10">
+  <div class="progress-bar" id="pbsq10"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C85AF5;">✨ Soul · Question 1 of 3</p>
+    <h1 class="screen-title">Is there something you used to love doing that you've stopped?</h1>
+    <div class="feeling-options" id="sq10-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq10" disabled onclick="goTo('sq11')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq11">
+  <div class="progress-bar" id="pbsq11"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C85AF5;">✨ Soul · Question 2 of 3</p>
+    <h1 class="screen-title">How often do you do something purely because it brings you joy — no other reason?</h1>
+    <div class="feeling-options" id="sq11-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq11" disabled onclick="goTo('sq12')">Continue</button></div>
+</div>
+
+<div class="screen" id="sq12">
+  <div class="progress-bar" id="pbsq12"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label" style="color:#C85AF5;">✨ Soul · Question 3 of 3</p>
+    <h1 class="screen-title">How clear do you feel on what matters to you — your own sense of purpose?</h1>
+    <div class="feeling-options" id="sq12-opts"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq12" disabled onclick="goTo('s7')">Continue</button></div>
+</div>
+
+<!-- S7: FEELING -->
+<div class="screen" id="s7">
+  <div class="progress-bar" id="pb7"></div>
+  <div class="scroll-content pad" style="padding-top:20px;">
+    <p class="step-label">Step 5 of 5</p>
+    <h1 class="screen-title" id="feeling-title">And finally — how are you feeling today?</h1>
+    <p class="screen-sub">Be honest. This just helps Ripple show up for you.</p>
+    <div class="feeling-options" id="feelings-grid"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-s7" disabled onclick="goToLoading()">Continue</button></div>
+</div>
+
+<!-- LOADING -->
+<div class="screen" id="s-loading">
+  <div class="loading-content">
+    <span class="loading-icon">✦</span>
+    <p class="loading-title">Finding our first step...</p>
+    <p class="loading-sub">Just a moment</p>
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  </div>
+</div>
+
+<!-- FIRST ACTION -->
+<div class="screen" id="s-action">
+  <div class="scroll-content">
+    <div class="action-greeting">
+      <span class="action-emoji" id="action-emoji">🌿</span>
+      <h1 class="screen-title" id="action-title">One small thing, just for you.</h1>
+      <p class="screen-sub" id="action-sub">Before anything else — here's your first step.</p>
+    </div>
+    <div class="action-cards" id="action-cards"></div>
+    <div style="height:20px;"></div>
+  </div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-action" disabled onclick="goToMain()">This is my first step →</button></div>
+</div>
+
+<!-- MAIN APP -->
+<div class="screen" id="s-main">
+  <div class="top-bar">
+    <div class="top-bar-row">
+      <h1 class="top-greeting" id="main-greeting">Hey ✦</h1>
+      <div class="streak-badge"><span class="streak-badge-num" id="streak-num">1</span><span class="streak-badge-label">day streak</span></div>
+    </div>
+    <div class="tab-bar" id="tab-bar"></div>
+  </div>
+  <div class="main-content" id="main-content"></div>
+  <div class="nav-bar">
+    <button class="nav-item active" onclick="switchNav('home',this)"><span class="nav-icon">✦</span><span class="nav-label">Home</span></button>
+    <button class="nav-item" onclick="switchNav('profile-tab',this)"><span class="nav-icon">◎</span><span class="nav-label">Me</span></button>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div class="screen" id="s-profile">
+  <div class="profile-scroll">
+    <h1 class="profile-name" id="p-name"></h1>
+    <p class="profile-tagline" id="p-location">South Perth · Member since today</p>
+    <div class="streak-card">
+      <div class="streak-num" id="p-streak">1</div>
+      <div><div class="streak-title">Day streak</div><div class="streak-sub">Keep showing up</div></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" id="p-events">0</div><div class="stat-label">Events</div></div>
+      <div class="stat-card"><div class="stat-val" id="p-helped">0</div><div class="stat-label">Helped</div></div>
+      <div class="stat-card"><div class="stat-val" id="p-steps">1</div><div class="stat-label">Steps</div></div>
+    </div>
+    <p class="section-label">Your interests</p>
+    <div class="interest-pills" id="p-interests"></div>
+    <p class="section-label">Your time</p>
+    <div style="background:var(--card);border:1.5px solid var(--card-border);border-radius:16px;padding:16px 20px;" id="p-times"></div>
+  </div>
+  <div class="nav-bar">
+    <button class="nav-item" onclick="goTo('s-main');renderMain();"><span class="nav-icon">✦</span><span class="nav-label">Home</span></button>
+    <button class="nav-item active"><span class="nav-icon">◎</span><span class="nav-label">Me</span></button>
+  </div>
+</div>
+
+</div>
+
+<script>
+const STATE_VERSION = 3;
+const DEFAULT_STATE = {
+  version: STATE_VERSION,
+  interests:[], times:[], location:'', name:'', feeling:'',
+  selectedAction:null, currentDay:1, helpConfirmed:false,
+  taskPosted:false, myTask:'', gotYouClicked:false,
+  activeTab:'home', missedDays:0, onboarded:false,
+  questionnaireAnswers:{},
+  myTasks:[], claimedTasks:{},
+  habits:[], habitHistory:[], completedToday:false, completedHabitsToday:{},
+  daysShowedUp:0, timesShowedUpForOthers:0,
+  consecutiveMissed:0, allBitMuch:false, reentryMode:false,
+  showPostForm:false, habitWeekStart:null, habitPhase:0,
+  changeReason:null, previousHabits:[],
+};
+const state = Object.assign({}, DEFAULT_STATE);
+
+// ============ LOCAL STORAGE ============
+function saveState() {
+  try {
+    localStorage.setItem('ripple_state', JSON.stringify(state));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('ripple_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Merge saved data with defaults — preserves old data, adds new fields
+      Object.assign(state, DEFAULT_STATE, parsed);
+      // Always ensure we\'re on the latest version
+      state.version = STATE_VERSION;
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+
+const INTERESTS = [
+  {id:'running',label:'🏃 Running'},{id:'coffee',label:'☕ Coffee'},
+  {id:'music',label:'🎵 Music'},{id:'hiking',label:'🥾 Hiking'},
+  {id:'gym',label:'🏋️ Gym'},{id:'cycling',label:'🚴 Cycling'},
+  {id:'yoga',label:'🧘 Yoga'},{id:'reading',label:'📚 Reading'},
+  {id:'photography',label:'📷 Photography'},{id:'cooking',label:'🍳 Cooking'},
+  {id:'swimming',label:'🏊 Swimming'},{id:'art',label:'🎨 Art'},
+];
+
+const TIMES = ['Early bird (5–8am)','Morning (8–11am)','Arvo (3–6pm)','Evening (6–9pm)'];
+
+const FEELINGS = [
+  {id:'good',label:'😊  Pretty good'},{id:'flat',label:'😐  A bit flat'},
+  {id:'overwhelmed',label:'😮‍💨  Overwhelmed'},{id:'notgreat',label:'😔  Honestly, not great'},
+];
+
+const ACTIONS = {
+  good:[
+    {icon:'☀️',title:'Get outside for 20 minutes',desc:'No destination needed. Just move.'},
+    {icon:'📓',title:'Write 3 things you\'re looking forward to',desc:'Big or small — anything counts.'},
+    {icon:'💧',title:'Drink a big glass of water',desc:'Simple. Effective. You probably need it.'},
+  ],
+  flat:[
+    {icon:'🌬️',title:'5 slow breaths',desc:'Breathe in for 4, hold for 4, out for 6.'},
+    {icon:'🚶',title:'A 10 minute walk — no phone',desc:'Just you and your neighbourhood.'},
+    {icon:'📓',title:'Write one thing you\'re grateful for',desc:'It doesn\'t have to be big.'},
+  ],
+  overwhelmed:[
+    {icon:'🌬️',title:'Take 5 slow breaths outside',desc:'Breathe in for 4, hold for 4, out for 6.'},
+    {icon:'💧',title:'Sit quietly for 2 minutes',desc:'No phone. Just stillness.'},
+    {icon:'📓',title:'Write one thing you\'re grateful for',desc:'Anchor yourself to something real.'},
+  ],
+  notgreat:[
+    {icon:'🤲',title:'Put both hands on your chest and breathe',desc:'You\'re here. That\'s enough for now.'},
+    {icon:'💧',title:'Drink some water and sit quietly',desc:'No pressure. Just rest for a moment.'},
+    {icon:'🌿',title:'Step outside for 5 minutes',desc:'Fresh air helps. Even a little.'},
+  ],
+};
+
+const INNER_CIRCLE_TASKS = [
+  {name:'Jake',relation:'Referred you',avatar:'J',color:'#C8F55A',task:'"Could use a hand moving a bookshelf this weekend — shouldn\'t take long"',duration:'Under 1 hour · This weekend'},
+  {name:'Maya',relation:'You referred',avatar:'M',color:'#F5C85A',task:'"Looking for someone to grab a coffee with — having a bit of a tough week"',duration:'30 mins · Anytime this week'},
+];
+
+const COMMUNITY_EVENTS = [
+  {day:'TUE',date:'13',type:'group',activity:'Park Run',emoji:'🏃',time:'6:30am',location:'Kings Park, Perth',people:[{avatar:'J',color:'#C8F55A'},{avatar:'P',color:'#F55AC8'},{avatar:'T',color:'#5AF5C8'}],why:'3 runners at your pace',color:'#C8F55A'},
+  {day:'WED',date:'14',type:'one-on-one',activity:'Coffee Chat',emoji:'☕',time:'8:00am',location:'Telegram, Leederville',people:[{avatar:'M',color:'#F5C85A'}],why:'Matched on music + mornings',color:'#5AF5C8'},
+  {day:'FRI',date:'16',type:'group',activity:'Vinyl Listening Session',emoji:'🎵',time:'7:00pm',location:'Northbridge',people:[{avatar:'L',color:'#5AC8F5'},{avatar:'Z',color:'#C85AF5'}],why:'Indie, jazz, no fluff',color:'#F55AC8'},
+];
+
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function switchNav(tab,btn){
+  state.activeTab=tab;
+  if(tab==='home'){renderMain();goTo('s-main');document.querySelectorAll('#s-main .nav-item')[0].classList.add('active');document.querySelectorAll('#s-main .nav-item')[1].classList.remove('active');}
+  else{renderProfile();goTo('s-profile');}
+}
+
+function checkLogin(){
+  const input=document.getElementById('login-input').value.trim();
+  const codes=['19grevillearoaddwellingup','frankaryagraceoliver'];
+  if(codes.includes(input)){
+    // Set Firebase user identity
+    if(window.USER_MAP) window.currentUserId = window.USER_MAP[input];
+    state.accessCode = input;
+    saveState();
+    goTo('s1');
+  }
+  else{document.getElementById('login-error').textContent='Incorrect code. Try again.';document.getElementById('login-input').value='';}
+}
+
+function renderProgress(step,total,pbId){
+  const pb=document.getElementById(pbId);
+  if(!pb)return;
+  pb.innerHTML='';
+  for(let i=0;i<total;i++){const seg=document.createElement('div');seg.className='progress-seg'+(i<step-1?' done':i===step-1?' active':'');pb.appendChild(seg);}
+}
+
+function renderInterests(){
+  const grid=document.getElementById('interests-grid');
+  grid.innerHTML='';
+  INTERESTS.forEach(i=>{
+    const btn=document.createElement('button');
+    btn.className='pill'+(state.interests.includes(i.id)?' selected':'');
+    btn.textContent=i.label;
+    btn.onclick=()=>{
+      if(state.interests.includes(i.id)){state.interests=state.interests.filter(x=>x!==i.id);btn.classList.remove('selected');}
+      else{state.interests.push(i.id);btn.classList.add('selected');}
+      document.getElementById('btn-s3').disabled=state.interests.length<2;
+    };
+    grid.appendChild(btn);
+  });
+  renderProgress(1,5,'pb3');
+}
+
+function renderTimes(){
+  const grid=document.getElementById('times-grid');
+  grid.innerHTML='';
+  TIMES.forEach(t=>{
+    const btn=document.createElement('button');
+    btn.className='time-slot'+(state.times.includes(t)?' selected':'');
+    btn.innerHTML=`<span class="check">✓</span>${t}`;
+    btn.onclick=()=>{
+      if(state.times.includes(t)){state.times=state.times.filter(x=>x!==t);btn.classList.remove('selected');}
+      else{state.times.push(t);btn.classList.add('selected');}
+      document.getElementById('btn-s4').disabled=state.times.length<1;
+    };
+    grid.appendChild(btn);
+  });
+  renderProgress(2,5,'pb4');
+}
+
+function checkLocation(){state.location=document.getElementById('location-input').value;document.getElementById('btn-s5').disabled=state.location.trim().length<2;renderProgress(3,5,'pb5');}
+
+function checkName(){
+  state.name=document.getElementById('name-input').value;
+  document.getElementById('btn-s6').disabled=state.name.trim().length<2;
+  if(state.name.trim().length>=2)document.getElementById('feeling-title').textContent=`And finally ${state.name.trim()} — how are you feeling today?`;
+  renderProgress(4,5,'pb6');
+}
+
+function renderFeelings(){
+  const grid=document.getElementById('feelings-grid');
+  grid.innerHTML='';
+  FEELINGS.forEach(f=>{
+    const btn=document.createElement('button');
+    btn.className='feeling-opt'+(state.feeling===f.id?' selected':'');
+    btn.textContent=f.label;
+    btn.onclick=()=>{state.feeling=f.id;document.querySelectorAll('.feeling-opt').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');document.getElementById('btn-s7').disabled=false;};
+    grid.appendChild(btn);
+  });
+  renderProgress(5,5,'pb7');
+}
+
+function goToLoading(){goTo('s-loading');setTimeout(()=>{renderActionScreen();goTo('s-action');},2200);}
+
+function renderActionScreen(){
+  const dim=getDominantDimension();
+  const actions=DIM_ACTIONS[dim]||DIM_ACTIONS.mind;
+  const dimEmojis={body:'💪',mind:'🧠',heart:'❤️',soul:'✨'};
+  const dimLabels={body:'your body',mind:'your mind',heart:'your connections',soul:'your sense of purpose'};
+  const feeling=state.feeling||'flat';
+  const feelingTitles={good:'You\'re doing well.',flat:'That\'s okay.',overwhelmed:'Let\'s start small.',notgreat:'You\'re here. That\'s already something.'};
+  document.getElementById('action-emoji').textContent=dimEmojis[dim];
+  document.getElementById('action-title').textContent=feelingTitles[feeling]+' Here\'s one thing for '+dimLabels[dim]+'.';
+  document.getElementById('action-sub').textContent='Based on your answers, this is where Ripple thinks you need to start.';
+  const cards=document.getElementById('action-cards');
+  cards.innerHTML='';
+  actions.forEach((a,i)=>{
+    const card=document.createElement('div');
+    card.className='action-card';
+    card.innerHTML='<div class="action-card-icon">'+a.icon+'</div><div class="action-card-text"><div class="action-card-title">'+a.title+'</div><div class="action-card-desc">'+a.desc+'</div></div>';
+    card.onclick=()=>{state.selectedAction=i;document.querySelectorAll('.action-card').forEach(c=>c.classList.remove('selected'));card.classList.add('selected');document.getElementById('btn-action').disabled=false;};
+    cards.appendChild(card);
+  });
+}
+
+function goToMain(){state.onboarded=true;saveState();renderMain();goTo('s-main');}
+
+function getUnlockState(){
+  const restricted=(state.consecutiveMissed||0)>=3;
+  return{
+    selfOnly:state.currentDay<3,
+    innerRipple:state.currentDay>=3,
+    community:state.helpConfirmed&&!restricted,
+    restricted,
+  };
+}
+
+function renderTabs(){
+  const unlock=getUnlockState();
+  const tabBar=document.getElementById('tab-bar');
+  const tabs=[
+    {id:'home',label:'✦ You'},
+    {id:'inner',label:'Inner Ripple',needsDay3:true},
+    {id:'noticeboard',label:'Noticeboard',needsCommunity:true},
+    {id:'events',label:'Events',needsCommunity:true},
+    {id:'social',label:'Social',needsCommunity:true},
+  ];
+  tabBar.innerHTML='';
+  tabs.forEach(t=>{
+    const btn=document.createElement('button');
+    const isLocked=(t.needsDay3&&!unlock.innerRipple)||(t.needsCommunity&&!unlock.community);
+    btn.className='tab-btn'+(state.activeTab===t.id?' active':'')+(isLocked?' locked':'');
+    btn.textContent=t.label;
+    if(!isLocked){btn.onclick=()=>{state.activeTab=t.id;renderMain();};}
+    else{btn.onclick=()=>showToast(t.needsDay3?'Show up for 3 days to unlock Inner Ripple.':'Help someone in your inner circle to unlock the community.');}
+    tabBar.appendChild(btn);
+  });
+}
+
+function showToast(msg){
+  const existing=document.querySelector('.toast');if(existing)existing.remove();
+  const toast=document.createElement('div');
+  toast.className='toast';
+  toast.style.cssText='position:absolute;bottom:100px;left:20px;right:20px;background:#1E1E2E;border:1.5px solid var(--card-border);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--muted);z-index:999;text-align:center;line-height:1.5;';
+  toast.textContent=msg;
+  document.querySelector('.phone').appendChild(toast);
+  setTimeout(()=>toast.remove(),2500);
+}
+
+function renderMain(){
+  const name=state.name||'friend';
+  document.getElementById('main-greeting').textContent=`Hey ${name} ✦`;
+  document.getElementById('streak-num').textContent=state.currentDay;
+  renderTabs();
+  const content=document.getElementById('main-content');
+  content.innerHTML='';
+
+  // Day simulator
+  const sim=document.createElement('div');
+  sim.className='day-sim';
+  sim.innerHTML=`<div><div class="day-sim-label">📅 Day simulator</div><div style="font-size:10px;color:#333;margin-top:2px;">Tap to test unlock progression</div></div><div class="day-sim-controls"><button class="day-sim-btn" onclick="changeDay(-1)">−</button><span class="day-sim-num">${state.currentDay}</span><button class="day-sim-btn" onclick="changeDay(1)">+</button></div>`;
+  content.appendChild(sim);
+
+  const unlock=getUnlockState();
+  if(state.activeTab==='home')renderHomeTab(content,unlock);
+  else if(state.activeTab==='inner')renderInnerRippleTab(content,unlock);
+  else if(state.activeTab==='noticeboard')renderNoticeboardTab(content);
+  else if(state.activeTab==='events')renderEventsTab(content);
+  else if(state.activeTab==='social')renderSocialTab(content);
+}
+
+function changeDay(delta){
+  state.currentDay=Math.max(1,Math.min(30,state.currentDay+delta));
+  if(state.currentDay<3)state.activeTab='home';
+  saveState();
+  renderMain();
+}
+
+function renderHomeTab(content,unlock){
+  if(unlock.restricted){
+    const rb=document.createElement('div');rb.className='restriction-banner';
+    rb.innerHTML=`<div class="rb-title">⚠️ You've missed a few days</div><div class="rb-sub">Your community tabs have been paused. Show up for yourself again to re-unlock them. Your inner circle has been gently notified you might need a hand.</div>`;
+    content.appendChild(rb);
+  }
+
+  const wc=document.createElement('div');wc.className='wellbeing-card';
+  wc.innerHTML=`<p class="wc-label">✦ Just for you · Day ${state.currentDay}</p><p class="wc-title">How are you showing up for yourself today?</p><p class="wc-sub">Your daily action is ready. One small thing, just for you.</p>`;
+  content.appendChild(wc);
+
+  if(!unlock.innerRipple){
+    const daysLeft=3-state.currentDay;
+    const locked=document.createElement('div');locked.className='locked-section';
+    locked.innerHTML=`<div class="locked-icon">🔒</div><div class="locked-title">Inner Ripple</div><div class="locked-sub">Show up for yourself for ${daysLeft} more day${daysLeft>1?'s':''} to unlock your inner circle.</div><div class="locked-progress"><div class="locked-progress-fill" style="width:${(state.currentDay/3)*100}%"></div></div>`;
+    content.appendChild(locked);
+
+    const locked2=document.createElement('div');locked2.className='locked-section';
+    locked2.innerHTML=`<div class="locked-icon">🔒</div><div class="locked-title">Community</div><div class="locked-sub">Keep showing up to unlock your community.</div>`;
+    content.appendChild(locked2);
+  }
+
+  if(unlock.innerRipple&&!unlock.community){
+    const note=document.createElement('div');note.className='refresh-note';
+    note.innerHTML=`<p>🌊 Inner Ripple is unlocked. Check that tab to see what your circle needs — and post what you need too.</p>`;
+    content.appendChild(note);
+
+    const locked2=document.createElement('div');locked2.className='locked-section';
+    locked2.innerHTML=`<div class="locked-icon">🔒</div><div class="locked-title">Community</div><div class="locked-sub">Help someone in your inner circle to unlock your community tabs.</div>`;
+    content.appendChild(locked2);
+  }
+
+  if(unlock.community){
+    const note=document.createElement('div');note.className='refresh-note';
+    note.innerHTML=`<p>✦ Your community is fully unlocked. Explore all tabs above.</p>`;
+    content.appendChild(note);
+  }
+}
+
+function renderInnerRippleTab(content,unlock){
+  // First time unlock banner
+  if(state.currentDay===3&&!state.taskPosted){
+    const banner=document.createElement('div');banner.className='inner-ripple-unlock';
+    banner.innerHTML='<div class="ir-unlock-emoji">🌊</div><div class="ir-unlock-title">Inner Ripple unlocked</div><div class="ir-unlock-sub">You have shown up for yourself 3 days in a row. Time to let someone in.</div>';
+    content.appendChild(banner);
+  }
+
+  // Community unlocked banner
+  if(state.helpConfirmed&&Object.keys(state.claimedTasks||{}).length===1){
+    const confirmed=document.createElement('div');confirmed.className='confirmed-banner';
+    confirmed.innerHTML='<div class="confirmed-icon">✦</div><div><div class="confirmed-title">You showed up for someone</div><div class="confirmed-sub">Your community tabs are now unlocked.</div></div>';
+    content.appendChild(confirmed);
+  }
+
+  // POST A NEW TASK button (always visible once taskPosted)
+  if(state.taskPosted){
+    const addBtn=document.createElement('button');
+    addBtn.style.cssText='width:100%;padding:13px;border-radius:12px;border:1.5px dashed rgba(200,245,90,0.3);background:none;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;margin-bottom:14px;';
+    addBtn.textContent='+ Post another task';
+    addBtn.onclick=()=>{state.showPostForm=!state.showPostForm;saveState();renderMain();};
+    content.appendChild(addBtn);
+  }
+
+  // POST TASK FORM (first time or when toggled)
+  if(!state.taskPosted||state.showPostForm){
+    const postCard=document.createElement('div');postCard.className='post-task-card';
+    postCard.innerHTML='<p class="post-task-label">'+(state.taskPosted?'✦ New task':'✦ Post yours first')+'</p>'
+      +'<p class="post-task-title">What\'s one thing someone could help you with?</p>'
+      +'<p class="post-task-sub">Keep it simple — under an hour.'+(state.taskPosted?'':' You need to post before you can see your circle\'s tasks.')+'</p>'
+      +'<textarea class="post-task-input" id="my-task-input" placeholder="E.g. A chat over coffee, help with something around the house..." oninput="checkTaskInput()"></textarea>'
+      +'<button class="post-task-btn" id="post-task-btn" disabled onclick="postTask()">Post my task →</button>';
+    content.appendChild(postCard);
+  }
+
+  // CIRCLE TASKS
+  if(state.taskPosted){
+    const circleLabel=document.createElement('p');
+    circleLabel.style.cssText='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;';
+    circleLabel.textContent='Your circle needs a hand';
+    content.appendChild(circleLabel);
+
+    // Load real Firebase tasks if connected, else show mock
+    const circleContainer = document.createElement('div');
+    circleContainer.id = 'circle-tasks-container';
+    content.appendChild(circleContainer);
+
+    if(window.fbListenToCircleTasks && window.currentUserId) {
+      console.log('Firebase connected. User:', window.currentUserId);
+      circleContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px;">Loading your circle\'s tasks...</p>';
+      window.fbListenToCircleTasks((tasks) => {
+        console.log('Tasks received from Firebase:', tasks);
+        if(tasks.length === 0) {
+          const userId = window.currentUserId || 'not set';
+          const circleId = window.CIRCLE_MAP ? window.CIRCLE_MAP[userId] : 'unknown';
+          circleContainer.innerHTML = '<div class="task-card"><p style="font-size:13px;color:var(--muted);text-align:center;padding:8px;">Your circle hasn\'t posted any tasks yet.</p><p style="font-size:11px;color:#888;text-align:center;margin-top:8px;">You: ' + userId + '<br>Reading from: ' + circleId + '</p></div>';
+        } else {
+          circleContainer.innerHTML = '';
+          tasks.forEach((task) => {
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            const claimed = task.claimedBy === window.currentUserId;
+            const confirmed = task.confirmed;
+            card.innerHTML = '<div class="task-card-header">'
+              + '<div class="task-avatar" style="background:var(--teal)">C</div>'
+              + '<div><div class="task-name">Your circle</div><div class="task-relation">Inner Ripple</div></div>'
+              + '</div>'
+              + '<p class="task-text">"' + task.text + '"</p>'
+              + '<p class="task-meta">Under 1 hour · This week</p>'
+              + (confirmed
+                ? '<div class="got-you-btn done">✓ Completed</div>'
+                : claimed
+                  ? `<button class="got-you-btn done" onclick="fbConfirm('${task.id}','${task.postedBy}')">✓ You've got them — tap to confirm done</button>`
+                  : `<button class="got-you-btn" onclick="fbGotYou('${task.id}','${task.postedBy}')">I've got you!</button>`);
+            circleContainer.appendChild(card);
+          });
+        }
+      });
+    } else {
+      const debugMsg = document.createElement('div');
+      debugMsg.style.cssText = 'background:#fff3cd;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#856404;';
+      debugMsg.innerHTML = 'Firebase status: ' + (window.fbListenToCircleTasks ? 'connected' : 'not connected') + '<br>User ID: ' + (window.currentUserId || 'not set');
+      circleContainer.appendChild(debugMsg);
+      // Fallback mock tasks
+      INNER_CIRCLE_TASKS.forEach((task,i)=>{
+        const card=document.createElement('div');card.className='task-card';
+        const claimed=state.claimedTasks&&state.claimedTasks[i];
+        card.innerHTML='<div class="task-card-header">'
+          +'<div class="task-avatar" style="background:'+task.color+'">'+task.avatar+'</div>'
+          +'<div><div class="task-name">'+task.name+'</div><div class="task-relation">'+task.relation+'</div></div>'
+          +'</div>'
+          +'<p class="task-text">'+task.task+'</p>'
+          +'<p class="task-meta">'+task.duration+'</p>'
+          +'<button class="got-you-btn'+(claimed?' done':'')+'" onclick="gotYou('+i+')">'+(claimed?'✓ You\'ve got them':'I\'ve got you!')+'</button>';
+        content.appendChild(card);
+      });
+    }
+
+    // MY TASKS
+    const myTaskLabel=document.createElement('p');
+    myTaskLabel.style.cssText='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin:16px 0 12px;';
+    myTaskLabel.textContent='Your tasks';
+    content.appendChild(myTaskLabel);
+
+    // All my tasks
+    const allMyTasks = state.myTasks && state.myTasks.length > 0 ? state.myTasks : (state.myTask ? [state.myTask] : []);
+    allMyTasks.forEach((task,idx)=>{
+      const myCard=document.createElement('div');myCard.className='task-card';
+      const isConfirmed=state.helpConfirmed&&idx===0;
+      myCard.innerHTML='<div class="task-card-header">'
+        +'<div class="task-avatar" style="background:var(--accent)">'+(state.name||'Y')[0].toUpperCase()+'</div>'
+        +'<div><div class="task-name">You</div><div class="task-relation">'+(isConfirmed?'Helped ✓':'Waiting for help')+'</div></div>'
+        +'</div>'
+        +'<p class="task-text">"'+task+'"</p>'
+        +'<p class="task-meta">Under 1 hour · This week</p>'
+        +(isConfirmed?'<div style="font-size:13px;color:var(--teal);font-weight:600;">✓ Jake confirmed they helped you</div>':'<div style="font-size:13px;color:var(--muted);">Waiting for your circle...</div>');
+      content.appendChild(myCard);
+    });
+
+    // Simulate confirm button
+    if(Object.keys(state.claimedTasks||{}).length>0&&!state.helpConfirmed){
+      const confirmBtn=document.createElement('button');
+      confirmBtn.className='post-task-btn';
+      confirmBtn.style.marginTop='12px';
+      confirmBtn.textContent='Simulate: Jake confirms your help ✓';
+      confirmBtn.onclick=()=>{state.helpConfirmed=true;saveState();renderMain();};
+      content.appendChild(confirmBtn);
+    }
+  }
+}
+
+function checkTaskInput(){
+  const val=document.getElementById('my-task-input').value.trim();
+  document.getElementById('post-task-btn').disabled=val.length<5;
+}
+
+function postTask(){
+  const task=document.getElementById('my-task-input').value.trim();
+  if(!state.myTasks)state.myTasks=[];
+  state.myTasks.push(task);
+  state.myTask=task;
+  state.taskPosted=true;
+  state.showPostForm=false;
+  // Write to Firebase if connected
+  if(window.fbPostTask) window.fbPostTask(task);
+  saveState();
+  renderMain();
+}
+
+function gotYou(i){if(!state.claimedTasks)state.claimedTasks={};if(!state.claimedTasks[i]){state.claimedTasks[i]=true;state.gotYouClicked=true;state.timesShowedUpForOthers=(state.timesShowedUpForOthers||0)+1;saveState();renderMain();}}
+
+function renderNoticeboardTab(content){
+  const label=document.createElement('p');
+  label.style.cssText='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;';
+  label.textContent='What\'s happening nearby';
+  content.appendChild(label);
+  [
+    {label:'Community',title:'Fremantle Night Markets this Friday',sub:'South Terrace · 5pm–10pm · Free entry'},
+    {label:'Lend a Hand',title:'Carol needs help with her garden',sub:'2 hours · Beaconsfield · This weekend'},
+    {label:'Notice',title:'New walking group starting in South Fremantle',sub:'Every Sunday 7am · All welcome'},
+    {label:'Lend a Hand',title:'Moving boxes to storage — 2 people needed',sub:'Saturday morning · White Gum Valley'},
+  ].forEach(n=>{
+    const card=document.createElement('div');card.className='notice-card';
+    card.innerHTML=`<p class="nc-label">${n.label}</p><p class="nc-title">${n.title}</p><p class="nc-sub">${n.sub}</p>`;
+    content.appendChild(card);
+  });
+}
+
+function renderEventsTab(content){
+  const label=document.createElement('p');
+  label.style.cssText='font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;';
+  label.textContent='This week, matched to you';
+  content.appendChild(label);
+  COMMUNITY_EVENTS.forEach(event=>{
+    const ec=document.createElement('div');ec.className='event-card';
+    ec.innerHTML=`
+      <p class="ec-meta" style="color:${event.color}">${event.day} ${event.date} · ${event.time}</p>
+      <p class="ec-title">${event.emoji} ${event.activity}</p>
+      <p class="ec-location">${event.location}</p>
+      <div class="ec-footer">
+        <div class="avatar-stack">${event.people.map(p=>`<div class="avatar" style="background:${p.color}">${p.avatar}</div>`).join('')}</div>
+        <span class="ec-badge" style="background:${event.color}22;color:${event.color}">${event.type==='one-on-one'?'1:1':`${event.people.length} going`}</span>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--muted);">${event.why}</p>
+    `;
+    ec.onmouseenter=()=>ec.style.borderColor=event.color;
+    ec.onmouseleave=()=>ec.style.borderColor='var(--card-border)';
+    content.appendChild(ec);
+  });
+}
+
+function renderSocialTab(content){
+  const locked=document.createElement('div');locked.className='locked-section';
+  locked.innerHTML=`<div class="locked-icon">🌊</div><div class="locked-title">Community social coming soon</div><div class="locked-sub">The more you show up, the more opens up.</div>`;
+  content.appendChild(locked);
+}
+
+function renderProfile(){
+  document.getElementById('p-name').textContent=state.name||'You';
+  document.getElementById('p-location').textContent=`${state.location||'South Perth'} · Member since today`;
+  document.getElementById('p-streak').textContent=state.currentDay;
+  document.getElementById('p-helped').textContent=state.helpConfirmed?'1':'0';
+  const interests=document.getElementById('p-interests');
+  interests.innerHTML=(state.interests.length>0?state.interests:['running','coffee','music']).map(id=>{const f=INTERESTS.find(i=>i.id===id);return f?`<span class="interest-pill">${f.label}</span>`:''}).join('');
+  const times=document.getElementById('p-times');
+  times.innerHTML=(state.times.length>0?state.times:['Early bird (5–8am)']).map(t=>`<div style="font-size:14px;color:var(--text);padding:6px 0;border-bottom:1px solid var(--card-border);">${t}</div>`).join('');
+}
+
+// ============ QUESTIONNAIRE DATA ============
+const QUESTIONS = [
+  {id:'sq1',dim:'body',opts:['Really well','It\'s okay','Pretty poorly','What\'s sleep?'],scores:[0,1,2,3]},
+  {id:'sq2',dim:'body',opts:['Most days','A few times a week','Rarely','I mostly do it out of guilt'],scores:[0,1,2,3]},
+  {id:'sq3',dim:'body',opts:['Really well','It\'s okay','A bit all over the place','Honestly, not great'],scores:[0,1,2,3]},
+  {id:'sq4',dim:'mind',opts:['Today','This week','Can\'t remember','I avoid it honestly'],scores:[0,1,2,3]},
+  {id:'sq5',dim:'mind',opts:['Most days','Sometimes','Rarely','I can\'t remember the last time'],scores:[0,1,2,3]},
+  {id:'sq6',dim:'mind',opts:['Pretty well, I have good tools','I get through it','I tend to push through and ignore it','Honestly, not well'],scores:[0,1,2,3]},
+  {id:'sq7',dim:'heart',opts:['Recently','It\'s been a while','I can\'t remember','I find that hard'],scores:[0,1,2,3]},
+  {id:'sq8',dim:'heart',opts:['Recently','It\'s been a while','I can\'t remember','I find that hard'],scores:[0,1,2,3]},
+  {id:'sq9',dim:'heart',opts:['Really connected','It\'s okay','A bit isolated if I\'m honest','More than I\'d like to admit'],scores:[0,1,2,3]},
+  {id:'sq10',dim:'soul',opts:['Not really, I\'m good','Maybe one or two things','Yes, a few things','A lot actually'],scores:[0,1,2,3]},
+  {id:'sq11',dim:'soul',opts:['Often','Sometimes','Rarely','I\'m not sure what that would even be'],scores:[0,1,2,3]},
+  {id:'sq12',dim:'soul',opts:['Pretty clear','Somewhat','It\'s a bit foggy','I genuinely don\'t know right now'],scores:[0,1,2,3]},
+];
+
+const DIM_ACTIONS = {
+  body:[
+    {icon:'😴',title:'Go to bed 30 minutes earlier tonight',desc:'Just one night. See how it feels.'},
+    {icon:'💧',title:'Drink a big glass of water right now',desc:'Then another one before bed.'},
+    {icon:'🥗',title:'Eat one thing today that genuinely nourishes you',desc:'Not perfect — just intentional.'},
+  ],
+  mind:[
+    {icon:'🌬️',title:'5 slow breaths — right now',desc:'Breathe in for 4, hold for 4, out for 6.'},
+    {icon:'📵',title:'10 minutes with no phone, no noise',desc:'Just sit. No agenda.'},
+    {icon:'📓',title:'Write down what\'s taking up space in your head',desc:'Get it out. You don\'t have to solve it.'},
+  ],
+  heart:[
+    {icon:'💬',title:'Send one message to someone you\'ve been thinking about',desc:'It doesn\'t have to be long. Just reach out.'},
+    {icon:'☕',title:'Invite someone for a coffee this week',desc:'Low stakes. Just show up.'},
+    {icon:'🤝',title:'Tell someone you appreciate them today',desc:'Anyone. It doesn\'t have to be deep.'},
+  ],
+  soul:[
+    {icon:'🎨',title:'Do one thing today just because you enjoy it',desc:'No productivity. No reason. Just because.'},
+    {icon:'🌿',title:'Spend 15 minutes outside doing nothing',desc:'Not exercising. Not scrolling. Just being.'},
+    {icon:'📓',title:'Write down one thing that used to matter to you',desc:'You don\'t have to act on it. Just remember it.'},
+  ],
+};
+
+function getDominantDimension() {
+  const scores = {body:0, mind:0, heart:0, soul:0};
+  if (!state.questionnaireAnswers) return 'mind';
+  QUESTIONS.forEach(q => {
+    const answer = state.questionnaireAnswers[q.id];
+    if (answer !== undefined) scores[q.dim] += answer;
+  });
+  return Object.entries(scores).sort((a,b) => b[1]-a[1])[0][0];
+}
+
+function renderQuestionScreen(qNum) {
+  const q = QUESTIONS[qNum-1];
+  const grid = document.getElementById('sq'+qNum+'-opts');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const pbEl = document.getElementById('pbsq'+qNum);
+  if (pbEl) {
+    pbEl.innerHTML = '';
+    for (let i = 0; i < 12; i++) {
+      const seg = document.createElement('div');
+      seg.className = 'progress-seg' + (i < qNum-1 ? ' done' : i === qNum-1 ? ' active' : '');
+      pbEl.appendChild(seg);
+    }
+  }
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    const saved = state.questionnaireAnswers && state.questionnaireAnswers[q.id] !== undefined;
+    const isSelected = saved && state.questionnaireAnswers[q.id] === q.scores[i];
+    btn.className = 'feeling-opt' + (isSelected ? ' selected' : '');
+    btn.textContent = opt;
+    btn.onclick = () => {
+      if (!state.questionnaireAnswers) state.questionnaireAnswers = {};
+      state.questionnaireAnswers[q.id] = q.scores[i];
+      document.querySelectorAll('#sq'+qNum+'-opts .feeling-opt').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('btn-sq'+qNum).disabled = false;
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function initQuestionnaireScreens() {
+  for (let i = 1; i <= 12; i++) renderQuestionScreen(i);
+}
+
+
+// ============ HABIT SYSTEM ============
+const HABIT_OPTIONS = {
+  body:[
+    {icon:'😴',title:'Go to bed 30 min earlier',small:'Go to bed 15 min earlier'},
+    {icon:'💧',title:'Drink 8 glasses of water',small:'Drink 4 glasses of water'},
+    {icon:'🥗',title:'Eat one nourishing meal',small:'Eat one piece of fruit'},
+    {icon:'🚶',title:'Walk for 20 minutes',small:'Walk for 5 minutes'},
+  ],
+  mind:[
+    {icon:'🌬️',title:'10 minutes of quiet — no phone',small:'3 slow breaths, right now'},
+    {icon:'📓',title:'Write in a journal for 5 minutes',small:'Write one sentence about your day'},
+    {icon:'📵',title:'No phone for the first hour of the day',small:'No phone for the first 10 minutes'},
+    {icon:'🧘',title:'5 minutes of meditation',small:'60 seconds of slow breathing'},
+  ],
+  heart:[
+    {icon:'💬',title:'Reach out to one person today',small:'Send one kind message'},
+    {icon:'☕',title:'Make plans with someone this week',small:'Send a "thinking of you" text'},
+    {icon:'🤝',title:'Tell someone you appreciate them',small:'Smile at a stranger'},
+  ],
+  soul:[
+    {icon:'🎨',title:'Do one creative thing today',small:'Doodle for 2 minutes'},
+    {icon:'🌿',title:'15 minutes outside, doing nothing',small:'Step outside for 2 minutes'},
+    {icon:'📚',title:'Read for 15 minutes',small:'Read one page of anything'},
+  ],
+};
+
+function getHabitPhase() {
+  // Phase 0: 0 habits, Phase 1: 1 habit (week 1), Phase 2: 2 habits (week 2), Phase 3: 3 habits (week 3+)
+  return Math.min(state.habitPhase || 0, 3);
+}
+
+function canAddHabit() {
+  const phase = getHabitPhase();
+  return phase < 3 && state.habits && state.habits.length < 3 &&
+    state.daysShowedUp >= (phase + 1) * 7;
+}
+
+function renderHabitSection(content) {
+  // Showed up for yourself card
+  const sup = document.createElement('div');
+  sup.className = 'showed-up-card';
+  sup.innerHTML = '<div class="showed-up-row"><span class="showed-up-label">Days showed up for yourself</span><span class="showed-up-num">' + (state.daysShowedUp||0) + '</span></div>'
+    + '<div class="showed-up-row" style="margin-top:8px;"><span class="showed-up-label">Times showed up for others</span><span class="showed-up-num" style="color:var(--teal);">' + (state.timesShowedUpForOthers||0) + '</span></div>'
+    + '<p class="showed-up-sub" style="margin-top:10px;">Not a streak — just an honest count of when you showed up.</p>';
+  content.appendChild(sup);
+
+  // Re-entry mode check-in
+  if (state.reentryMode && state.completedToday) {
+    const reentry = document.createElement('div');
+    reentry.className = 'reentry-card';
+    reentry.innerHTML = '<div class="reentry-emoji">🌅</div>'
+      + '<div class="reentry-title">How are you doing today?</div>'
+      + '<div class="reentry-sub">You showed up yesterday. That matters.</div>'
+      + '<div class="reentry-opts">'
+      + '<button class="reentry-opt" onclick="reentryChoice(true)">Feeling ready for a challenge</button>'
+      + '<button class="reentry-opt" onclick="reentryChoice(false)">Let\'s focus on nailing the basics</button>'
+      + '</div>';
+    content.appendChild(reentry);
+    return;
+  }
+
+  // Restriction mode
+  if (state.consecutiveMissed >= 3) {
+    const rb = document.createElement('div');
+    rb.className = 'restriction-banner';
+    rb.innerHTML = '<div class="rb-title">⚠️ Ripple has brought you back to the first step</div>'
+      + '<div class="rb-sub" style="margin-top:6px;line-height:1.7;">If we can\'t show up for ourselves, we can\'t show up for others. Your community tabs are paused. Your inner circle has been gently notified.<br><br>Just one small thing today. That\'s all.</div>';
+    content.appendChild(rb);
+  }
+
+  // Habits
+  if (!state.habits || state.habits.length === 0) {
+    // No habits yet — show first action as the habit seed
+    const noHabits = document.createElement('div');
+    noHabits.className = 'wellbeing-card';
+    noHabits.innerHTML = '<p class="wc-label">✦ Your first habit</p>'
+      + '<p class="wc-title">Show up for yourself today</p>'
+      + '<p class="wc-sub">Complete your daily action to start building your habits. After 7 days, you can add a second.</p>';
+    content.appendChild(noHabits);
+  } else {
+    // Show current habits
+    const habitLabel = document.createElement('p');
+    habitLabel.style.cssText = 'font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;';
+    habitLabel.textContent = 'Your habits';
+    content.appendChild(habitLabel);
+
+    state.habits.forEach((habit, i) => {
+      const card = document.createElement('div');
+      const isDone = state.completedHabitsToday && state.completedHabitsToday[i];
+      card.className = 'habit-card' + (isDone ? ' completed' : '');
+      card.innerHTML = '<div class="habit-info"><div class="habit-title">' + habit.icon + ' ' + habit.title + '</div>'
+        + '<div class="habit-sub">' + habit.dim + ' · ' + (isDone ? 'Done today ✓' : 'Tap when done') + '</div></div>'
+        + '<div class="habit-check ' + (isDone ? 'done' : '') + '" onclick="completeHabit(' + i + ')">' + (isDone ? '✓' : '') + '</div>';
+      content.appendChild(card);
+
+      const changeBtn = document.createElement('button');
+      changeBtn.className = 'habit-change-btn';
+      changeBtn.textContent = 'This habit isn\'t working for me';
+      changeBtn.onclick = () => showChangeModal(i);
+      content.appendChild(changeBtn);
+    });
+
+    // Add habit button
+    if (state.habits.length < 3) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-habit-btn';
+      const daysNeeded = (state.habits.length + 1) * 7;
+      const canAdd = state.daysShowedUp >= daysNeeded;
+      addBtn.disabled = !canAdd;
+      addBtn.textContent = canAdd ? '+ Add a new habit' : '+ Add a second habit after ' + daysNeeded + ' days showed up (' + Math.max(0, daysNeeded - state.daysShowedUp) + ' to go)';
+      if (canAdd) addBtn.onclick = () => showAddHabitModal();
+      content.appendChild(addBtn);
+    }
+  }
+
+  // Daily wellbeing action
+  const wc = document.createElement('div');
+  wc.className = 'wellbeing-card';
+  wc.style.marginTop = '8px';
+  wc.innerHTML = '<p class="wc-label">✦ Today\'s action · Day ' + state.currentDay + '</p>'
+    + '<p class="wc-title">How are you showing up for yourself today?</p>'
+    + '<p class="wc-sub">Tap to see your daily action.</p>';
+  content.appendChild(wc);
+}
+
+function completeHabit(i) {
+  if (!state.completedHabitsToday) state.completedHabitsToday = {};
+  if (state.completedHabitsToday[i]) return; // already done
+  state.completedHabitsToday[i] = true;
+  // If at least one habit done today, count the day
+  if (!state.completedToday) {
+    state.completedToday = true;
+    state.daysShowedUp = (state.daysShowedUp || 0) + 1;
+    state.consecutiveMissed = 0;
+    if (state.allBitMuch) state.reentryMode = true;
+  }
+  saveState();
+  renderMain();
+}
+
+function reentryChoice(ready) {
+  if (ready) {
+    state.reentryMode = false;
+    state.allBitMuch = false;
+  }
+  state.reentryMode = !ready;
+  saveState();
+  renderMain();
+}
+
+function showChangeModal(habitIndex) {
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-sheet">
+    <p class="modal-title">What's going on?</p>
+    <p class="modal-sub">No judgment — this just helps Ripple find something better.</p>
+    <button class="modal-opt" onclick="handleChangeReason('aligned',${habitIndex})">This habit isn't aligned with me right now</button>
+    <button class="modal-opt" onclick="handleChangeReason('toomuch',${habitIndex})">This habit is too much for me right now</button>
+    <button class="modal-opt" onclick="handleChangeReason('allmuch',${habitIndex})">It's all a bit much for me right now</button>
+    <button class="modal-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+  </div>`;
+  document.querySelector('.phone').appendChild(overlay);
+}
+function showAddHabitModal(replaceIndex) {
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+  const dims = ['body','mind','heart','soul'];
+  const dimLabels = {body:'💪 Body',mind:'🧠 Mind',heart:'❤️ Heart',soul:'✨ Soul'};
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  let optsHtml = '';
+  dims.forEach(dim => {
+    const opts = HABIT_OPTIONS[dim];
+    optsHtml += `<p style="font-size:11px;color:var(--accent);letter-spacing:1.5px;text-transform:uppercase;font-weight:700;margin:12px 0 8px;">${dimLabels[dim]}</p>`;
+    opts.forEach(opt => {
+      const ri = replaceIndex !== undefined ? replaceIndex : 'null';
+      optsHtml += `<button class="modal-opt" onclick="addHabit('${dim}','${opt.icon}',${JSON.stringify(opt.title)},${JSON.stringify(opt.small)},${ri})">${opt.icon} ${opt.title}</button>`;
+    });
+  });
+  overlay.innerHTML = `<div class="modal-sheet" style="max-height:70vh;overflow-y:auto;">
+    <p class="modal-title">Choose a habit</p>
+    <p class="modal-sub">Pick something that feels right for where you are now.</p>
+    ${optsHtml}
+    <button class="modal-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+  </div>`;
+  document.querySelector('.phone').appendChild(overlay);
+}
+function addHabit(dim, icon, title, small, replaceIndex) {
+  document.querySelector('.modal-overlay')&&document.querySelector('.modal-overlay').remove();
+  if (!state.habits) state.habits = [];
+  const newHabit = {icon, title, dim, small};
+  if (replaceIndex !== null && replaceIndex !== undefined) {
+    if (!state.previousHabits) state.previousHabits = [];
+    state.previousHabits.push(state.habits[replaceIndex]);
+    state.habits[replaceIndex] = newHabit;
+  } else {
+    state.habits.push(newHabit);
+    state.habitPhase = state.habits.length;
+  }
+  saveState(); renderMain();
+}
+
+
+
+function clearState() {
+  localStorage.removeItem('ripple_state');
+  location.reload();
+}
+
+
+
+// Firebase task interactions
+function fbGotYou(taskId, postedByUserId) {
+  if(window.fbClaimTask) {
+    window.fbClaimTask(taskId, postedByUserId);
+    state.timesShowedUpForOthers = (state.timesShowedUpForOthers||0) + 1;
+    saveState();
+    renderMain();
+  }
+}
+
+function fbConfirm(taskId, postedByUserId) {
+  if(window.fbConfirmTask) {
+    window.fbConfirmTask(taskId, postedByUserId);
+    state.helpConfirmed = true;
+    saveState();
+    renderMain();
+  }
+}
+
+// Restore Firebase user on page load
+function restoreFirebaseUser() {
+  if(state.accessCode && window.USER_MAP) {
+    window.currentUserId = window.USER_MAP[state.accessCode];
+  }
+}
+
+// ============ INIT ============
+renderInterests();
+renderTimes();
+renderFeelings();
+initQuestionnaireScreens();
+restoreFirebaseUser();
+
+// Load saved state - runs after all functions defined
+const hadSavedState = loadState();
+if (hadSavedState && state.onboarded) {
+  // Already completed onboarding - restore user and go straight to main
+  restoreFirebaseUser();
+  renderMain();
+  goTo('s-main');
+  // Add reset button for testing
+  const resetBtn = document.createElement('button');
+  resetBtn.style.cssText = 'position:absolute;top:16px;right:16px;background:none;border:none;color:#333;font-size:11px;cursor:pointer;z-index:999;font-family:DM Sans,sans-serif;';
+  resetBtn.textContent = 'Reset';
+  resetBtn.onclick = clearState;
+  document.querySelector('.phone').appendChild(resetBtn);
+} else if (hadSavedState && state.accessCode) {
+  // Has code but didn't finish onboarding - skip login, resume onboarding
+  restoreFirebaseUser();
+  goTo('s1');
+}
+</script>
+</body>
+</html>
