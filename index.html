@@ -994,7 +994,7 @@ function switchAuthTab(tab) {
   document.getElementById('login-error').textContent = '';
 }
 
-function handleAuth() {
+async function handleAuth() {
   const btn = document.getElementById('auth-btn');
   const errorEl = document.getElementById('login-error');
   errorEl.textContent = '';
@@ -1062,9 +1062,25 @@ function handleAuth() {
       btn.textContent = 'Create Account';
       return;
     }
+    // Test Supabase connection first
+    errorEl.style.color = 'var(--muted)';
+    errorEl.textContent = 'Connecting to Supabase...';
+    
+    try {
+      const testResult = await supabase.from('users').select('count').limit(1);
+      errorEl.textContent = 'Connected. Creating account...';
+    } catch(e) {
+      errorEl.style.color = 'var(--warning)';
+      errorEl.textContent = 'Connection failed: ' + e.message;
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+
     window.sbSignUp(email, password, referral, (result) => {
       if (result.error) {
-        errorEl.textContent = result.error;
+        errorEl.style.color = 'var(--warning)';
+        errorEl.textContent = 'Error: ' + result.error;
         btn.disabled = false;
         btn.textContent = 'Create Account';
         return;
@@ -1072,7 +1088,6 @@ function handleAuth() {
       state.userEmail = email;
       state.referralCode = result.referralCode;
       saveState();
-      // Show confirmation if email confirm is on
       errorEl.style.color = 'var(--accent)';
       errorEl.textContent = 'Account created! Check your email to confirm, then sign in.';
       setTimeout(() => switchAuthTab('signin'), 2000);
