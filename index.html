@@ -252,16 +252,32 @@
     .phone{width:390px;height:844px;border-radius:44px;}
   }
 </style>
-<script src="https://unpkg.com/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
 <script>
   const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndnpoZ3J0aWliYm92dXBuanBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDEwMDIsImV4cCI6MjA5NDExNzAwMn0.bgBYcKEFDwOj9MSLdy0M7NHiOgcEBtkUMvw094RWg6U';
-  // Handle different ways the CDN might expose the client
-  // UMD build exposes createClient directly on window.supabase
-  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  console.log('Supabase client created:', typeof db.from);
 
-  // Generate a random referral code
+  // Load Supabase dynamically and initialise
+  let db = null;
+
+  function loadSupabase() {
+    return new Promise((resolve, reject) => {
+      if (db) { resolve(db); return; }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@supabase/supabase-js@2.39.0/dist/umd/supabase.js';
+      script.onload = () => {
+        try {
+          db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          console.log('Supabase loaded:', typeof db.from);
+          resolve(db);
+        } catch(e) {
+          reject(e);
+        }
+      };
+      script.onerror = () => reject(new Error('Failed to load Supabase'));
+      document.head.appendChild(script);
+    });
+  }
+
   function generateReferralCode(name) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = (name || 'RIPPLE').toUpperCase().slice(0,4);
@@ -269,24 +285,13 @@
     return code;
   }
 
-  // Sign up with email and password
   window.sbSignUp = async function(email, password, referralCode, callback) {
     try {
-      // Create auth account
-      const { data: authData, error: authError } = await db.auth.signUp({
-        email, password
-      });
-
-      if (authError) {
-        callback({ error: authError.message });
-        return;
-      }
-
-      // Generate their referral code
+      const client = await loadSupabase();
+      const { data: authData, error: authError } = await client.auth.signUp({ email, password });
+      if (authError) { callback({ error: authError.message }); return; }
       const newReferralCode = generateReferralCode(email.split('@')[0]);
-
-      // Create user record
-      await db.from('users').upsert({
+      await client.from('users').upsert({
         email,
         access_code: authData.user ? authData.user.id : email,
         referral_code: newReferralCode,
@@ -294,48 +299,36 @@
         onboarded: false,
         updated_at: new Date().toISOString()
       }, { onConflict: 'email' });
-
-      // Try to link inner circles if referral code is valid
-      const { data: referrer } = await supabase
-        .from('users')
-        .select('email')
-        .eq('referral_code', referralCode.toUpperCase())
-        .single();
-
+      const { data: referrer } = await client.from('users').select('email').eq('referral_code', referralCode.toUpperCase()).single();
       if (referrer) {
-        await db.from('inner_circle').upsert([
+        await client.from('inner_circle').upsert([
           { user_code: email, circle_code: referrer.email },
           { user_code: referrer.email, circle_code: email }
         ], { onConflict: 'user_code,circle_code' });
       }
-
       callback({ success: true, email, referralCode: newReferralCode });
     } catch(err) {
-      callback({ error: err.message || 'Something went wrong. Please try again.' });
+      callback({ error: err.message || 'Something went wrong.' });
     }
   };
 
-  // Sign in
   window.sbSignIn = async function(email, password, callback) {
-    const { data, error } = await db.auth.signInWithPassword({ email, password });
-    if (error) { callback({ error: error.message }); return; }
-
-    // Load user data
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    callback({ success: true, user: userData, authUser: data.user });
+    try {
+      const client = await loadSupabase();
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) { callback({ error: error.message }); return; }
+      const { data: userData } = await client.from('users').select('*').eq('email', email).single();
+      callback({ success: true, user: userData, authUser: data.user });
+    } catch(err) {
+      callback({ error: err.message || 'Connection error.' });
+    }
   };
 
-  // Save full user state to Supabase
   window.sbSaveState = async function(email, stateData) {
     if (!email) return;
-    const { error } = await supabase
-      .from('users')
-      .update({
+    try {
+      const client = await loadSupabase();
+      await client.from('users').update({
         name: stateData.name,
         location: stateData.location,
         interests: stateData.interests,
@@ -353,48 +346,47 @@
         help_confirmed: stateData.helpConfirmed || false,
         current_day: stateData.currentDay || 1,
         updated_at: new Date().toISOString()
-      })
-      .eq('email', email);
-    if (error) console.error('Save error:', error);
+      }).eq('email', email);
+    } catch(err) { console.error('Save error:', err); }
   };
 
-  // Post a task
   window.sbPostTask = async function(email, taskText) {
-    const { error } = await supabase
-      .from('tasks')
-      .insert({ posted_by: email, text: taskText });
-    if (error) console.error('Post task error:', error);
+    try {
+      const client = await loadSupabase();
+      await client.from('tasks').insert({ posted_by: email, text: taskText });
+    } catch(err) { console.error('Post task error:', err); }
   };
 
-  // Get circle tasks
-  window.sbListenToCircleTasks = function(email, callback) {
-    supabase
-      .from('inner_circle')
-      .select('circle_code')
-      .eq('user_code', email)
-      .then(({ data }) => {
-        if (!data || data.length === 0) { callback([]); return; }
-        const circleEmail = data[0].circle_code;
-        const fetchTasks = () => {
-          db.from('tasks').select('*').eq('posted_by', circleEmail)
-            .then(({ data: tasks }) => callback(tasks || []));
-        };
-        fetchTasks();
-        setInterval(fetchTasks, 10000);
-      });
+  window.sbListenToCircleTasks = async function(email, callback) {
+    try {
+      const client = await loadSupabase();
+      const { data } = await client.from('inner_circle').select('circle_code').eq('user_code', email);
+      if (!data || data.length === 0) { callback([]); return; }
+      const circleEmail = data[0].circle_code;
+      const fetchTasks = async () => {
+        const { data: tasks } = await client.from('tasks').select('*').eq('posted_by', circleEmail);
+        callback(tasks || []);
+      };
+      fetchTasks();
+      setInterval(fetchTasks, 10000);
+    } catch(err) { console.error('Listen error:', err); callback([]); }
   };
 
-  // Claim a task
   window.sbClaimTask = async function(taskId, claimerEmail) {
-    await db.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
+    try {
+      const client = await loadSupabase();
+      await client.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
+    } catch(err) { console.error('Claim error:', err); }
   };
 
-  // Confirm a task
   window.sbConfirmTask = async function(taskId) {
-    await db.from('tasks').update({ confirmed: true }).eq('id', taskId);
+    try {
+      const client = await loadSupabase();
+      await client.from('tasks').update({ confirmed: true }).eq('id', taskId);
+    } catch(err) { console.error('Confirm error:', err); }
   };
 
-  console.log('Supabase auth initialised');
+  console.log('Supabase helpers ready');
 </script>
 
 <script>
@@ -1074,7 +1066,7 @@ async function handleAuth() {
     errorEl.textContent = 'Connecting to Supabase...';
     
     try {
-      const testResult = await db.from('users').select('count').limit(1);
+      const client = await loadSupabase();
       errorEl.textContent = 'Connected. Creating account...';
     } catch(e) {
       errorEl.style.color = 'var(--warning)';
