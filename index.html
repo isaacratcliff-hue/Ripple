@@ -252,11 +252,13 @@
     .phone{width:390px;height:844px;border-radius:44px;}
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
   const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndnpoZ3J0aWliYm92dXBuanBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDEwMDIsImV4cCI6MjA5NDExNzAwMn0.bgBYcKEFDwOj9MSLdy0M7NHiOgcEBtkUMvw094RWg6U';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Handle different ways the CDN might expose the client
+  const { createClient } = window.supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // Generate a random referral code
   function generateReferralCode(name) {
@@ -270,7 +272,7 @@
   window.sbSignUp = async function(email, password, referralCode, callback) {
     try {
       // Create auth account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await db.auth.signUp({
         email, password
       });
 
@@ -283,7 +285,7 @@
       const newReferralCode = generateReferralCode(email.split('@')[0]);
 
       // Create user record
-      await supabase.from('users').upsert({
+      await db.from('users').upsert({
         email,
         access_code: authData.user ? authData.user.id : email,
         referral_code: newReferralCode,
@@ -300,7 +302,7 @@
         .single();
 
       if (referrer) {
-        await supabase.from('inner_circle').upsert([
+        await db.from('inner_circle').upsert([
           { user_code: email, circle_code: referrer.email },
           { user_code: referrer.email, circle_code: email }
         ], { onConflict: 'user_code,circle_code' });
@@ -314,7 +316,7 @@
 
   // Sign in
   window.sbSignIn = async function(email, password, callback) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
     if (error) { callback({ error: error.message }); return; }
 
     // Load user data
@@ -373,7 +375,7 @@
         if (!data || data.length === 0) { callback([]); return; }
         const circleEmail = data[0].circle_code;
         const fetchTasks = () => {
-          supabase.from('tasks').select('*').eq('posted_by', circleEmail)
+          db.from('tasks').select('*').eq('posted_by', circleEmail)
             .then(({ data: tasks }) => callback(tasks || []));
         };
         fetchTasks();
@@ -383,12 +385,12 @@
 
   // Claim a task
   window.sbClaimTask = async function(taskId, claimerEmail) {
-    await supabase.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
+    await db.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
   };
 
   // Confirm a task
   window.sbConfirmTask = async function(taskId) {
-    await supabase.from('tasks').update({ confirmed: true }).eq('id', taskId);
+    await db.from('tasks').update({ confirmed: true }).eq('id', taskId);
   };
 
   console.log('Supabase auth initialised');
@@ -397,7 +399,9 @@
 <script>
   const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndnpoZ3J0aWliYm92dXBuanBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDEwMDIsImV4cCI6MjA5NDExNzAwMn0.bgBYcKEFDwOj9MSLdy0M7NHiOgcEBtkUMvw094RWg6U';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Handle different ways the CDN might expose the client
+  const { createClient } = window.supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // Save full user state to Supabase
   window.sbSaveState = async function(accessCode, stateData) {
@@ -1067,7 +1071,7 @@ async function handleAuth() {
     errorEl.textContent = 'Connecting to Supabase...';
     
     try {
-      const testResult = await supabase.from('users').select('count').limit(1);
+      const testResult = await db.from('users').select('count').limit(1);
       errorEl.textContent = 'Connected. Creating account...';
     } catch(e) {
       errorEl.style.color = 'var(--warning)';
