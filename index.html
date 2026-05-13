@@ -2347,9 +2347,35 @@ function renderHabitSection(content) {
       const card = document.createElement('div');
       const isDone = state.completedHabitsToday && state.completedHabitsToday[i];
       card.className = 'habit-card' + (isDone ? ' completed' : '');
-      card.innerHTML = '<div class="habit-info"><div class="habit-title">' + habit.icon + ' ' + habit.title + '</div>'
-        + '<div class="habit-sub">' + habit.dim + ' · ' + (isDone ? 'Done today ✓' : 'Tap when done') + '</div></div>'
-        + '<div class="habit-check ' + (isDone ? 'done' : '') + '" onclick="completeHabit(' + i + ')">' + (isDone ? '✓' : '') + '</div>';
+      
+      const habitInfo = document.createElement('div');
+      habitInfo.className = 'habit-info';
+      habitInfo.innerHTML = '<div class="habit-title">' + habit.icon + ' ' + habit.title + '</div>'
+        + '<div class="habit-sub">' + habit.dim + ' · ' + (isDone ? 'Done today ✓' : 'Tap to complete') + '</div>';
+      
+      const checkBtn = document.createElement('div');
+      checkBtn.className = 'habit-check' + (isDone ? ' done' : '');
+      checkBtn.textContent = isDone ? '✓' : '';
+      checkBtn.style.cursor = 'pointer';
+      
+      // Use closure to capture index
+      (function(idx) {
+        checkBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          completeHabit(idx);
+        });
+        checkBtn.addEventListener('touchend', function(e) {
+          e.preventDefault();
+          completeHabit(idx);
+        });
+        card.addEventListener('click', function(e) {
+          completeHabit(idx);
+        });
+      })(i);
+      
+      card.appendChild(habitInfo);
+      card.appendChild(checkBtn);
       content.appendChild(card);
 
       // Only show change button if more than 1 habit (always keep at least one)
@@ -2394,7 +2420,13 @@ function renderHabitSection(content) {
 
 function completeHabit(i) {
   if (!state.completedHabitsToday) state.completedHabitsToday = {};
-  if (state.completedHabitsToday[i]) return; // already done
+  if (state.completedHabitsToday[i]) {
+    // Already done - untick it (toggle)
+    delete state.completedHabitsToday[i];
+    saveState();
+    renderMain();
+    return;
+  }
   state.completedHabitsToday[i] = true;
   // If at least one habit done today, count the day
   if (!state.completedToday) {
