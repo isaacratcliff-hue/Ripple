@@ -266,52 +266,50 @@
     return code;
   }
 
-  // Sign up with email, password, referral code
+  // Sign up with email and password
   window.sbSignUp = async function(email, password, referralCode, callback) {
-    // Check referral code exists
-    const { data: referrer, error: refError } = await supabase
-      .from('users')
-      .select('email, referral_code')
-      .eq('referral_code', referralCode.toUpperCase())
-      .single();
+    try {
+      // Create auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email, password
+      });
 
-    if (refError || !referrer) {
-      callback({ error: 'Invalid referral code. Ask a Ripple member for theirs.' });
-      return;
-    }
+      if (authError) {
+        callback({ error: authError.message });
+        return;
+      }
 
-    // Create auth account
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email, password
-    });
+      // Generate their referral code
+      const newReferralCode = generateReferralCode(email.split('@')[0]);
 
-    if (authError) {
-      callback({ error: authError.message });
-      return;
-    }
-
-    // Generate their referral code
-    const newReferralCode = generateReferralCode(email.split('@')[0]);
-
-    // Create user record
-    const { error: userError } = await supabase
-      .from('users')
-      .upsert({
+      // Create user record
+      await supabase.from('users').upsert({
         email,
-        access_code: authData.user.id,
+        access_code: authData.user ? authData.user.id : email,
         referral_code: newReferralCode,
         referred_by: referralCode.toUpperCase(),
         onboarded: false,
         updated_at: new Date().toISOString()
       }, { onConflict: 'email' });
 
-    // Link inner circles
-    await supabase.from('inner_circle').upsert([
-      { user_code: email, circle_code: referrer.email },
-      { user_code: referrer.email, circle_code: email }
-    ], { onConflict: 'user_code,circle_code' });
+      // Try to link inner circles if referral code is valid
+      const { data: referrer } = await supabase
+        .from('users')
+        .select('email')
+        .eq('referral_code', referralCode.toUpperCase())
+        .single();
 
-    callback({ success: true, userId: authData.user.id, email, referralCode: newReferralCode });
+      if (referrer) {
+        await supabase.from('inner_circle').upsert([
+          { user_code: email, circle_code: referrer.email },
+          { user_code: referrer.email, circle_code: email }
+        ], { onConflict: 'user_code,circle_code' });
+      }
+
+      callback({ success: true, email, referralCode: newReferralCode });
+    } catch(err) {
+      callback({ error: err.message || 'Something went wrong. Please try again.' });
+    }
   };
 
   // Sign in
