@@ -252,13 +252,14 @@
     .phone{width:390px;height:844px;border-radius:44px;}
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
 <script>
   const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndnpoZ3J0aWliYm92dXBuanBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDEwMDIsImV4cCI6MjA5NDExNzAwMn0.bgBYcKEFDwOj9MSLdy0M7NHiOgcEBtkUMvw094RWg6U';
   // Handle different ways the CDN might expose the client
-  const { createClient } = window.supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+  // UMD build exposes createClient directly on window.supabase
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  console.log('Supabase client created:', typeof db.from);
 
   // Generate a random referral code
   function generateReferralCode(name) {
@@ -400,8 +401,9 @@
   const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhndnpoZ3J0aWliYm92dXBuanBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDEwMDIsImV4cCI6MjA5NDExNzAwMn0.bgBYcKEFDwOj9MSLdy0M7NHiOgcEBtkUMvw094RWg6U';
   // Handle different ways the CDN might expose the client
-  const { createClient } = window.supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+  // UMD build exposes createClient directly on window.supabase
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  console.log('Supabase client created:', typeof db.from);
 
   // Save full user state to Supabase
   window.sbSaveState = async function(accessCode, stateData) {
