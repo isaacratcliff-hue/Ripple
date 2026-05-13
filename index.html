@@ -523,17 +523,32 @@
 <div class="phone">
 
 <!-- LOGIN -->
-<div class="screen active" id="s-login">
-  <div class="ripple-bg"><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div><div class="ripple-circle"></div></div>
-  <div class="login-top" style="position:relative;z-index:1;">
+<div class="screen active" id="s-login" style="justify-content:space-between;">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 32px;">
     <div class="login-logo">Ripple</div>
     <p class="login-tagline">Start close. Spread far.</p>
-    <p class="login-label">Access code</p>
-    <input type="password" class="text-input" id="login-input" placeholder="Enter your code..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter')checkLogin()" oninput="document.getElementById('login-error').textContent=''">
-    <p class="login-error" id="login-error"></p>
+    <div style="display:flex;gap:0;margin-bottom:24px;background:var(--pill);border-radius:12px;padding:4px;">
+      <button id="tab-signin" onclick="switchAuthTab('signin')" style="flex:1;padding:10px;border-radius:9px;border:none;background:var(--accent);color:#0A0A0F;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Sign In</button>
+      <button id="tab-signup" onclick="switchAuthTab('signup')" style="flex:1;padding:10px;border-radius:9px;border:none;background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Sign Up</button>
+    </div>
+    <div id="signin-form">
+      <p class="login-label">Email</p>
+      <input type="email" class="text-input" id="signin-email" placeholder="your@email.com" style="margin-bottom:12px;">
+      <p class="login-label">Password</p>
+      <input type="password" class="text-input" id="signin-password" placeholder="Your password" style="margin-bottom:0;">
+    </div>
+    <div id="signup-form" style="display:none;">
+      <p class="login-label">Email</p>
+      <input type="email" class="text-input" id="signup-email" placeholder="your@email.com" style="margin-bottom:12px;">
+      <p class="login-label">Password</p>
+      <input type="password" class="text-input" id="signup-password" placeholder="Create a password" style="margin-bottom:12px;">
+      <p class="login-label">Referral code</p>
+      <input type="text" class="text-input" id="signup-referral" placeholder="From a Ripple member" style="margin-bottom:0;text-transform:uppercase;">
+    </div>
+    <p class="login-error" id="login-error" style="margin-top:10px;"></p>
   </div>
-  <div class="bottom-area" style="position:relative;z-index:1;">
-    <button class="btn-primary" onclick="checkLogin()" ontouchend="checkLogin()">Enter</button>
+  <div style="padding:16px 28px 56px;">
+    <button class="btn-primary" id="auth-btn" onclick="handleAuth()">Sign In</button>
   </div>
 </div>
 
