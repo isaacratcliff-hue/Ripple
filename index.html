@@ -361,21 +361,41 @@
     try {
       const client = await loadSupabase();
       const { data } = await client.from('inner_circle').select('circle_code').eq('user_code', email);
-      if (!data || data.length === 0) { callback([]); return; }
+      if (!data || data.length === 0) { 
+        callback([]); 
+        return; 
+      }
       const circleEmail = data[0].circle_code;
       const fetchTasks = async () => {
-        const { data: tasks } = await client.from('tasks').select('*').eq('posted_by', circleEmail);
-        callback(tasks || []);
+        const { data: tasks, error } = await client.from('tasks').select('*').eq('posted_by', circleEmail).order('created_at', {ascending: false});
+        if (!error) callback(tasks || []);
       };
       fetchTasks();
-      setInterval(fetchTasks, 10000);
-    } catch(err) { console.error('Listen error:', err); callback([]); }
+      // Poll every 8 seconds for updates
+      if (window._taskPollInterval) clearInterval(window._taskPollInterval);
+      window._taskPollInterval = setInterval(fetchTasks, 8000);
+    } catch(err) { 
+      console.error('Listen error:', err); 
+      callback([]); 
+    }
   };
 
-  window.sbClaimTask = async function(taskId, claimerEmail) {
+  // Get my own tasks to show in my tasks section
+  window.sbGetMyTasks = async function(email, callback) {
     try {
       const client = await loadSupabase();
-      await client.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
+      const { data: tasks } = await client.from('tasks').select('*').eq('posted_by', email).order('created_at', {ascending: false});
+      callback(tasks || []);
+    } catch(err) { callback([]); }
+  };
+
+  window.sbClaimTask = async function(taskId, claimerEmail, claimerName) {
+    try {
+      const client = await loadSupabase();
+      await client.from('tasks').update({ 
+        claimed_by: claimerEmail,
+        claimed_by_name: claimerName || claimerEmail.split('@')[0]
+      }).eq('id', taskId);
     } catch(err) { console.error('Claim error:', err); }
   };
 
@@ -775,7 +795,7 @@
     <h1 class="screen-title">How clear do you feel on what matters to you — your own sense of purpose?</h1>
     <div class="feeling-options" id="sq12-opts"></div>
   </div>
-  <div class="bottom-area"><button class="btn-primary" id="btn-sq12" disabled onclick="goTo('s7')">Continue</button></div>
+  <div class="bottom-area"><button class="btn-primary" id="btn-sq12" disabled onclick="finishQuestionnaire()">Continue</button></div>
 </div>
 
 <!-- S7: FEELING -->
@@ -819,7 +839,23 @@
   <div class="top-bar">
     <div class="top-bar-row">
       <h1 class="top-greeting" id="main-greeting">Hey ✦</h1>
-      <div class="streak-badge"><span class="streak-badge-num" id="streak-num">1</span><span class="streak-badge-label">day streak</span></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="position:relative;cursor:pointer;width:36px;height:36px;" onclick="showNotifications()">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="18" cy="18" r="4" fill="var(--accent)"/>
+            <circle cx="18" cy="18" r="8" stroke="var(--accent)" stroke-width="1.5" stroke-opacity="0.6">
+              <animate attributeName="r" values="4;10;4" dur="2.5s" repeatCount="indefinite"/>
+              <animate attributeName="stroke-opacity" values="0.8;0;0.8" dur="2.5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="18" cy="18" r="8" stroke="var(--accent)" stroke-width="1" stroke-opacity="0.3">
+              <animate attributeName="r" values="4;15;4" dur="2.5s" begin="0.5s" repeatCount="indefinite"/>
+              <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur="2.5s" begin="0.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+          <div id="notif-badge" style="display:none;position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--warning);border-radius:50%;font-size:9px;font-weight:700;color:#fff;align-items:center;justify-content:center;font-family:DM Sans,sans-serif;">0</div>
+        </div>
+        <div class="streak-badge"><span class="streak-badge-num" id="streak-num">1</span><span class="streak-badge-label">day streak</span></div>
+      </div>
     </div>
     <div class="tab-bar" id="tab-bar"></div>
   </div>
@@ -880,9 +916,9 @@ function saveState() {
   try {
     localStorage.setItem('ripple_state', JSON.stringify(state));
   } catch(e) {}
-  // Also save to Supabase if logged in
+  // Save to Supabase
   if(state.userEmail && window.sbSaveState) {
-    window.sbSaveState(state.userEmail, state);
+    window.sbSaveState(state.userEmail, state).catch(e => console.log('Save error:', e));
   }
 }
 
@@ -905,30 +941,44 @@ function loadState() {
 const INTEREST_CATEGORIES = [
   {
     name: 'Movement', emoji: '💪',
+    desc: 'How you like to move your body',
+    color: '#C8F55A', bg: 'rgba(200,245,90,0.08)',
     items: ['Running','Gym','Cycling','Yoga','Swimming','Hiking','Walking','Surfing','Rock Climbing','Pilates','Crossfit','Martial Arts','Tennis','Basketball','Football','Netball','Cricket','Golf','Dance','Skateboarding','Paddleboarding','Rowing']
   },
   {
     name: 'Nourishment', emoji: '🍳',
+    desc: 'Food, drink and looking after yourself',
+    color: '#F5C85A', bg: 'rgba(245,200,90,0.08)',
     items: ['Cooking','Coffee','Baking','Nutrition','Meal Prep','Farmers Markets','Wine','Craft Beer','Cocktails','Food Markets','Vegetarian','Vegan','Sourdough','BBQ','Fine Dining','Street Food']
   },
   {
     name: 'Mind', emoji: '🧠',
+    desc: 'What keeps your mind alive and curious',
+    color: '#5AC8F5', bg: 'rgba(90,200,245,0.08)',
     items: ['Reading','Meditation','Journalling','Learning','Podcasts','Philosophy','Psychology','History','Science','Languages','Chess','Puzzles','Self Development','Stoicism','Mindfulness']
   },
   {
     name: 'Creative', emoji: '🎨',
+    desc: 'Making, building and expressing yourself',
+    color: '#F55AC8', bg: 'rgba(245,90,200,0.08)',
     items: ['Music','Art','Photography','Writing','Design','Film','Theatre','Poetry','Ceramics','Woodworking','Knitting','Illustration','Graphic Design','Architecture','Fashion','Interior Design','Video Making','Podcasting']
   },
   {
     name: 'Social', emoji: '🤝',
+    desc: 'How you like to spend time with others',
+    color: '#5AF5C8', bg: 'rgba(90,245,200,0.08)',
     items: ['Dinners','Markets','Live Music','Community Events','Board Games','Trivia','Volunteering','Networking','Book Clubs','Wine Tasting','Comedy','Festivals','Concerts','Pub Nights']
   },
   {
     name: 'Nature', emoji: '🌿',
+    desc: 'Getting outside and into the world',
+    color: '#C8F55A', bg: 'rgba(200,245,90,0.08)',
     items: ['Beaches','Parks','Gardening','Camping','Birdwatching','Stargazing','Fishing','Bushwalking','Ocean Swimming','Foraging','National Parks','Sunsets']
   },
   {
     name: 'Tech & Learning', emoji: '💡',
+    desc: 'Technology, business and building things',
+    color: '#C85AF5', bg: 'rgba(200,90,245,0.08)',
     items: ['Coding','Gaming','AI','Investing','Entrepreneurship','Startups','Crypto','Personal Finance','3D Printing','Electronics']
   },
 ];
@@ -1135,36 +1185,94 @@ function renderInterests(){
   grid.innerHTML = '';
 
   INTEREST_CATEGORIES.forEach((cat, catIdx) => {
-    // Collapsible header
-    const header = document.createElement('button');
-    header.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--card);border:1.5px solid var(--card-border);border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;margin-bottom:8px;transition:all 0.2s;';
-    header.innerHTML = '<span style="font-size:14px;font-weight:600;color:var(--text);">' + cat.emoji + '  ' + cat.name + '</span><span class="cat-arrow-' + catIdx + '" style="color:var(--muted);font-size:12px;">▼</span>';
+    const selectedInCat = cat.items.filter(item => {
+      const id = item.toLowerCase().replace(/[^a-z0-9]/g,'_');
+      return state.interests.includes(id);
+    }).length;
 
-    // Content panel — starts collapsed
+    // Card wrapper
+    const card = document.createElement('div');
+    card.style.cssText = 'border-radius:20px;border:1.5px solid var(--card-border);overflow:hidden;margin-bottom:12px;transition:all 0.2s;';
+    if(selectedInCat > 0) {
+      card.style.borderColor = cat.color;
+      card.style.background = cat.bg;
+    } else {
+      card.style.background = 'var(--card)';
+    }
+
+    // Card header
+    const header = document.createElement('button');
+    header.style.cssText = 'width:100%;display:flex;align-items:center;padding:18px 20px;background:none;border:none;cursor:pointer;text-align:left;gap:16px;';
+    
+    const iconWrap = document.createElement('div');
+    iconWrap.style.cssText = 'width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:' + cat.bg + ';border:1.5px solid ' + cat.color + '33;';
+    iconWrap.textContent = cat.emoji;
+
+    const textWrap = document.createElement('div');
+    textWrap.style.cssText = 'flex:1;';
+    textWrap.innerHTML = '<div style="font-size:16px;font-weight:700;color:var(--text);font-family:DM Sans,sans-serif;">' + cat.name + '</div>'
+      + '<div style="font-size:13px;color:var(--muted);margin-top:2px;">' + cat.desc + '</div>';
+
+    const rightSide = document.createElement('div');
+    rightSide.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;';
+    
+    const countBadge = document.createElement('div');
+    countBadge.id = 'count-' + catIdx;
+    countBadge.style.cssText = 'font-size:12px;font-weight:700;padding:3px 10px;border-radius:100px;' + (selectedInCat > 0 ? 'background:' + cat.color + '22;color:' + cat.color + ';' : 'color:var(--muted);');
+    countBadge.textContent = selectedInCat > 0 ? selectedInCat + ' selected' : 'Tap to explore';
+
+    const arrow = document.createElement('div');
+    arrow.id = 'arrow-' + catIdx;
+    arrow.style.cssText = 'font-size:11px;color:var(--muted);';
+    arrow.textContent = '▼';
+
+    rightSide.appendChild(countBadge);
+    rightSide.appendChild(arrow);
+
+    header.appendChild(iconWrap);
+    header.appendChild(textWrap);
+    header.appendChild(rightSide);
+
+    // Panel
     const panel = document.createElement('div');
     panel.id = 'cat-panel-' + catIdx;
-    panel.style.cssText = 'display:none;padding:12px;background:var(--card);border:1.5px solid var(--card-border);border-top:none;border-radius:0 0 14px 14px;margin-top:-8px;margin-bottom:8px;';
+    panel.style.cssText = 'display:none;padding:0 20px 16px;';
+
+    // Divider
+    const divider = document.createElement('div');
+    divider.style.cssText = 'height:1px;background:var(--card-border);margin-bottom:14px;';
+    panel.appendChild(divider);
 
     // Pills
     const pillsDiv = document.createElement('div');
-    pillsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;';
+    pillsDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;';
 
     cat.items.forEach(item => {
       const id = item.toLowerCase().replace(/[^a-z0-9]/g,'_');
       const btn = document.createElement('button');
-      btn.className = 'pill' + (state.interests.includes(id) ? ' selected' : '');
+      const isSelected = state.interests.includes(id);
+      btn.style.cssText = 'padding:9px 16px;border-radius:100px;border:1.5px solid ' + (isSelected ? cat.color : 'var(--card-border)') + ';background:' + (isSelected ? cat.color + '22' : 'none') + ';color:' + (isSelected ? cat.color : 'var(--muted)') + ';font-size:13px;font-weight:500;cursor:pointer;font-family:DM Sans,sans-serif;transition:all 0.15s;';
       btn.textContent = item;
       btn.onclick = () => {
         if(state.interests.includes(id)){
           state.interests = state.interests.filter(x => x !== id);
-          btn.classList.remove('selected');
+          btn.style.borderColor = 'var(--card-border)';
+          btn.style.background = 'none';
+          btn.style.color = 'var(--muted)';
         } else {
           state.interests.push(id);
-          btn.classList.add('selected');
+          btn.style.borderColor = cat.color;
+          btn.style.background = cat.color + '22';
+          btn.style.color = cat.color;
         }
         document.getElementById('btn-s3').disabled = state.interests.length < 2;
-        // Update header to show count
-        updateCatHeader(header, cat, catIdx);
+        // Update count badge
+        const newCount = cat.items.filter(i => state.interests.includes(i.toLowerCase().replace(/[^a-z0-9]/g,'_'))).length;
+        const badge = document.getElementById('count-' + catIdx);
+        badge.textContent = newCount > 0 ? newCount + ' selected' : 'Tap to explore';
+        badge.style.cssText = 'font-size:12px;font-weight:700;padding:3px 10px;border-radius:100px;' + (newCount > 0 ? 'background:' + cat.color + '22;color:' + cat.color + ';' : 'color:var(--muted);');
+        card.style.borderColor = newCount > 0 ? cat.color : 'var(--card-border)';
+        card.style.background = newCount > 0 ? cat.bg : 'var(--card)';
       };
       pillsDiv.appendChild(btn);
     });
@@ -1176,8 +1284,8 @@ function renderInterests(){
     customRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
     const customInput = document.createElement('input');
     customInput.type = 'text';
-    customInput.placeholder = '+ Add your own...';
-    customInput.style.cssText = 'flex:1;padding:8px 14px;border-radius:100px;border:1.5px dashed var(--card-border);background:none;color:var(--text);font-size:13px;font-family:DM Sans,sans-serif;outline:none;';
+    customInput.placeholder = '+ Add your own ' + cat.name.toLowerCase() + '...';
+    customInput.style.cssText = 'flex:1;padding:9px 16px;border-radius:100px;border:1.5px dashed var(--card-border);background:none;color:var(--text);font-size:13px;font-family:DM Sans,sans-serif;outline:none;';
     customInput.addEventListener('keydown', (e) => {
       if(e.key === 'Enter' && customInput.value.trim()) {
         const customId = 'custom_' + customInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g,'_');
@@ -1185,17 +1293,15 @@ function renderInterests(){
         if(!state.interests.includes(customId)) {
           state.interests.push(customId);
           const btn = document.createElement('button');
-          btn.className = 'pill selected';
-          btn.textContent = customLabel;
+          btn.style.cssText = 'padding:9px 16px;border-radius:100px;border:1.5px solid ' + cat.color + ';background:' + cat.color + '22;color:' + cat.color + ';font-size:13px;font-weight:500;cursor:pointer;font-family:DM Sans,sans-serif;';
+          btn.textContent = customLabel + ' ✕';
           btn.onclick = () => {
             state.interests = state.interests.filter(x => x !== customId);
             btn.remove();
             document.getElementById('btn-s3').disabled = state.interests.length < 2;
-            updateCatHeader(header, cat, catIdx);
           };
           pillsDiv.appendChild(btn);
           document.getElementById('btn-s3').disabled = state.interests.length < 2;
-          updateCatHeader(header, cat, catIdx);
         }
         customInput.value = '';
       }
@@ -1203,39 +1309,22 @@ function renderInterests(){
     customRow.appendChild(customInput);
     panel.appendChild(customRow);
 
-    // Toggle behaviour
+    // Toggle
     let open = false;
     header.onclick = () => {
       open = !open;
       panel.style.display = open ? 'block' : 'none';
-      header.style.borderRadius = open ? '14px 14px 0 0' : '14px';
-      header.querySelector('.cat-arrow-' + catIdx).textContent = open ? '▲' : '▼';
+      document.getElementById('arrow-' + catIdx).textContent = open ? '▲' : '▼';
     };
 
-    grid.appendChild(header);
-    grid.appendChild(panel);
-    updateCatHeader(header, cat, catIdx);
+    card.appendChild(header);
+    card.appendChild(panel);
+    grid.appendChild(card);
   });
 
   renderProgress(1, 5, 'pb3');
 }
 
-function updateCatHeader(header, cat, catIdx) {
-  const selectedInCat = cat.items.filter(item => {
-    const id = item.toLowerCase().replace(/[^a-z0-9]/g,'_');
-    return state.interests.includes(id);
-  }).length;
-  const customCount = state.interests.filter(id => id.startsWith('custom_')).length;
-  const nameEl = header.querySelector('span:first-child');
-  nameEl.textContent = cat.emoji + '  ' + cat.name + (selectedInCat > 0 ? ' (' + selectedInCat + ')' : '');
-  if(selectedInCat > 0) {
-    header.style.borderColor = 'rgba(91,155,213,0.4)';
-    nameEl.style.color = 'var(--accent)';
-  } else {
-    header.style.borderColor = 'var(--card-border)';
-    nameEl.style.color = 'var(--text)';
-  }
-}
 
 
 function renderTimes(){
@@ -1323,7 +1412,16 @@ function renderActionScreen(){
   });
 }
 
-function goToMain(){state.onboarded=true;saveState();renderMain();goTo('s-main');showReferralCode();}
+function goToMain(){
+  state.onboarded=true;
+  // Set monthly focus from initial questionnaire
+  state.monthlyFocus = getDominantDimension();
+  if(!state.lastReflectionDate) state.lastReflectionDate = new Date().toISOString();
+  saveState();
+  renderMain();
+  goTo('s-main');
+  showReferralCode();
+}
 
 function getUnlockState(){
   const restricted=(state.consecutiveMissed||0)>=3;
@@ -1370,6 +1468,9 @@ function showToast(msg){
 function renderMain(){
   const name=state.name||'friend';
   document.getElementById('main-greeting').textContent=`Hey ${name} ✦`;
+  // Check for new notifications
+  setTimeout(checkNotifications, 500);
+  setTimeout(updateNotificationBadge, 600);
   document.getElementById('streak-num').textContent=state.currentDay;
   renderTabs();
   const content=document.getElementById('main-content');
@@ -1486,18 +1587,17 @@ function renderInnerRippleTab(content,unlock){
       circleContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px;">Loading your circle\'s tasks...</p>';
       window.sbListenToCircleTasks(state.userEmail, (tasks) => {
         if(tasks.length === 0) {
-          const userId = window.currentUserId || 'not set';
-          const circleId = window.CIRCLE_MAP ? window.CIRCLE_MAP[userId] : 'unknown';
-          circleContainer.innerHTML = '<div class="task-card"><p style="font-size:13px;color:var(--muted);text-align:center;padding:8px;">Your circle hasn\'t posted any tasks yet.</p><p style="font-size:11px;color:#888;text-align:center;margin-top:8px;">You: ' + userId + '<br>Reading from: ' + circleId + '</p></div>';
+          circleContainer.innerHTML = '<div class="task-card"><p style="font-size:14px;color:var(--muted);text-align:center;padding:8px;">Your circle hasn\'t posted any tasks yet.</p></div>';
         } else {
           circleContainer.innerHTML = '';
           tasks.forEach((task) => {
             const card = document.createElement('div');
             card.className = 'task-card';
-            const claimed = task.claimedBy === window.currentUserId;
+            const claimed = task.claimed_by === state.userEmail;
             const confirmed = task.confirmed;
+            const initial = (task.posted_by || 'C')[0].toUpperCase();
             card.innerHTML = '<div class="task-card-header">'
-              + '<div class="task-avatar" style="background:var(--teal)">C</div>'
+              + '<div class="task-avatar" style="background:var(--teal)">' + initial + '</div>'
               + '<div><div class="task-name">Your circle</div><div class="task-relation">Inner Ripple</div></div>'
               + '</div>'
               + '<p class="task-text">"' + task.text + '"</p>'
@@ -1505,8 +1605,8 @@ function renderInnerRippleTab(content,unlock){
               + (confirmed
                 ? '<div class="got-you-btn done">✓ Completed</div>'
                 : claimed
-                  ? `<button class="got-you-btn done" onclick="fbConfirm('${task.id}','${task.postedBy}')">✓ You've got them — tap to confirm done</button>`
-                  : `<button class="got-you-btn" onclick="fbGotYou('${task.id}','${task.postedBy}')">I've got you!</button>`);
+                  ? `<button class="got-you-btn done" onclick="fbConfirm('${task.id}')">✓ You've got them — tap to confirm done</button>`
+                  : `<button class="got-you-btn" onclick="fbGotYou('${task.id}','${task.posted_by}')">I've got you!</button>`);
             circleContainer.appendChild(card);
           });
         }
@@ -1534,32 +1634,41 @@ function renderInnerRippleTab(content,unlock){
     content.appendChild(myTaskLabel);
 
     // Load my tasks from Supabase
+    const myTaskLabel2 = document.createElement('p');
+    myTaskLabel2.style.cssText = 'font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin:16px 0 12px;';
+    myTaskLabel2.textContent = 'Your tasks';
+    content.appendChild(myTaskLabel2);
+
     const myTasksContainer = document.createElement('div');
     myTasksContainer.id = 'my-tasks-container';
+    myTasksContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);padding:8px;">Loading your tasks...</p>';
     content.appendChild(myTasksContainer);
 
-    const allMyTasks = state.myTasks && state.myTasks.length > 0 ? state.myTasks : (state.myTask ? [state.myTask] : []);
-    allMyTasks.forEach((task,idx)=>{
-      const myCard=document.createElement('div');myCard.className='task-card';
-      const isConfirmed=state.helpConfirmed&&idx===0;
-      myCard.innerHTML='<div class="task-card-header">'
-        +'<div class="task-avatar" style="background:var(--accent)">'+(state.name||'Y')[0].toUpperCase()+'</div>'
-        +'<div><div class="task-name">You</div><div class="task-relation">'+(isConfirmed?'Helped ✓':'Waiting for help')+'</div></div>'
-        +'</div>'
-        +'<p class="task-text">"'+task+'"</p>'
-        +'<p class="task-meta">Under 1 hour · This week</p>'
-        +(isConfirmed?'<div style="font-size:13px;color:var(--teal);font-weight:600;">✓ Jake confirmed they helped you</div>':'<div style="font-size:13px;color:var(--muted);">Waiting for your circle...</div>');
-      content.appendChild(myCard);
-    });
-
-    // Simulate confirm button
-    if(Object.keys(state.claimedTasks||{}).length>0&&!state.helpConfirmed){
-      const confirmBtn=document.createElement('button');
-      confirmBtn.className='post-task-btn';
-      confirmBtn.style.marginTop='12px';
-      confirmBtn.textContent='Simulate: Jake confirms your help ✓';
-      confirmBtn.onclick=()=>{state.helpConfirmed=true;saveState();renderMain();};
-      content.appendChild(confirmBtn);
+    if(window.sbGetMyTasks && state.userEmail) {
+      window.sbGetMyTasks(state.userEmail, (tasks) => {
+        if(tasks.length === 0) {
+          myTasksContainer.innerHTML = '<div class="task-card"><p style="font-size:14px;color:var(--muted);text-align:center;padding:8px;">Your tasks will appear here once posted.</p></div>';
+        } else {
+          myTasksContainer.innerHTML = '';
+          tasks.forEach((task) => {
+            const myCard = document.createElement('div');
+            myCard.className = 'task-card';
+            const initial = (state.name || 'Y')[0].toUpperCase();
+            myCard.innerHTML = '<div class="task-card-header">'
+              + '<div class="task-avatar" style="background:var(--accent)">' + initial + '</div>'
+              + '<div><div class="task-name">You</div><div class="task-relation">' + (task.confirmed ? 'Completed ✓' : task.claimed_by ? (task.claimed_by_name || task.claimed_by.split('@')[0]) + ' is on it!' : 'Waiting for help') + '</div></div>'
+              + '</div>'
+              + '<p class="task-text">"' + task.text + '"</p>'
+              + '<p class="task-meta">Under 1 hour · This week</p>'
+              + (task.confirmed 
+                ? '<div style="font-size:13px;color:var(--teal);font-weight:600;">✓ Completed — your community tabs are unlocked</div>'
+                : task.claimed_by 
+                  ? `<div style="font-size:13px;color:var(--accent);font-weight:600;">${task.claimed_by_name || task.claimed_by.split('@')[0]} has got you!</div><button class="got-you-btn" style="margin-top:10px;" onclick="confirmMyTask('${task.id}')">${task.claimed_by_name || task.claimed_by.split('@')[0]} had my back! ✓</button><div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center;">Tap to confirm they helped you</div>`
+                  : '<div style="font-size:13px;color:var(--muted);">Waiting for your circle...</div>');
+            myTasksContainer.appendChild(myCard);
+          });
+        }
+      });
     }
   }
 }
@@ -1576,8 +1685,9 @@ function postTask(){
   state.myTask=task;
   state.taskPosted=true;
   state.showPostForm=false;
-  // Write to Supabase
-  if(window.sbPostTask && state.userEmail) window.sbPostTask(state.userEmail, task);
+  if(window.sbPostTask && state.userEmail) {
+    window.sbPostTask(state.userEmail, task).catch(e => console.log('Post task error:', e));
+  }
   saveState();
   renderMain();
 }
@@ -1635,10 +1745,152 @@ function renderProfile(){
   document.getElementById('p-location').textContent=`${state.location||'South Perth'} · Member since today`;
   document.getElementById('p-streak').textContent=state.currentDay;
   document.getElementById('p-helped').textContent=state.helpConfirmed?'1':'0';
+
+  // Monthly focus card
+  const profileScroll = document.querySelector('.profile-scroll');
+  if(profileScroll) {
+    // Remove existing focus card if present
+    const existing = document.getElementById('monthly-focus-card');
+    if(existing) existing.remove();
+
+    const focus = state.monthlyFocus || getDominantDimension();
+    const focusCard = document.createElement('div');
+    focusCard.id = 'monthly-focus-card';
+    focusCard.style.cssText = 'background:linear-gradient(135deg,rgba(91,155,213,0.12),rgba(91,155,213,0.04));border:1.5px solid rgba(91,155,213,0.25);border-radius:20px;padding:20px;margin-bottom:20px;';
+    focusCard.innerHTML = '<p style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:8px;">This month focus</p>'
+      + '<div style="display:flex;align-items:center;gap:12px;">'
+      + '<div style="font-size:32px;">' + (DIM_EMOJIS[focus]||'✦') + '</div>'
+      + '<div><div style="font-family:Playfair Display,serif;font-size:22px;color:var(--text);">' + (DIM_NAMES[focus]||'You') + '</div>'
+      + '<div style="font-size:13px;color:var(--muted);margin-top:2px;">' + (DIM_DESC[focus]||'') + '</div></div>'
+      + '</div>';
+
+    // Insert after the profile name/tagline
+    const tagline = document.getElementById('p-location');
+    if(tagline) tagline.after(focusCard);
+  }
+
   const interests=document.getElementById('p-interests');
   interests.innerHTML=(state.interests.length>0?state.interests:['running','coffee','music']).map(id=>{const f=INTERESTS.find(i=>i.id===id);return f?`<span class="interest-pill">${f.label}</span>`:''}).join('');
   const times=document.getElementById('p-times');
   times.innerHTML=(state.times.length>0?state.times:['Early bird (5–8am)']).map(t=>`<div style="font-size:14px;color:var(--text);padding:6px 0;border-bottom:1px solid var(--card-border);">${t}</div>`).join('');
+}
+
+
+// ============ NOTIFICATIONS ============
+function addNotification(message, type) {
+  if (!state.notifications) state.notifications = [];
+  state.notifications.unshift({
+    id: Date.now(),
+    message,
+    type: type || 'info',
+    time: new Date().toISOString(),
+    read: false,
+  });
+  // Keep max 20 notifications
+  state.notifications = state.notifications.slice(0, 20);
+  state.notificationsRead = false;
+  saveState();
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+  const badge = document.getElementById('notif-badge');
+  if (!badge) return;
+  const unread = (state.notifications || []).filter(n => !n.read).length;
+  badge.textContent = unread;
+  badge.style.display = unread > 0 ? 'flex' : 'none';
+}
+
+function checkNotifications() {
+  if (!state.userEmail) return;
+
+  // Check for missed days
+  if ((state.consecutiveMissed || 0) >= 3) {
+    const existing = (state.notifications || []).find(n => n.type === 'missed' && !n.read);
+    if (!existing) {
+      addNotification('You haven\'t shown up for yourself in 3 days. Your inner circle has been notified. One small step today is all it takes.', 'missed');
+    }
+  }
+
+  // Check if reflection is due
+  if (checkReflectionDue()) {
+    const existing = (state.notifications || []).find(n => n.type === 'reflection' && !n.read);
+    if (!existing) {
+      addNotification('Your monthly reflection is ready. 12 quick questions to check in with yourself.', 'reflection');
+    }
+  }
+
+  // Check Supabase for partner activity
+  if (window.sbGetMyTasks && state.userEmail) {
+    window.sbGetMyTasks(state.userEmail, (tasks) => {
+      tasks.forEach(task => {
+        if (task.claimed_by && !task.confirmed) {
+          const existing = (state.notifications || []).find(n => n.type === 'claimed_' + task.id);
+          if (!existing) {
+            const name = task.claimed_by_name || task.claimed_by.split('@')[0];
+            addNotification(name + ' has got you! Tap to confirm they helped.', 'claimed_' + task.id);
+          }
+        }
+        if (task.confirmed) {
+          const existing = (state.notifications || []).find(n => n.type === 'confirmed_' + task.id);
+          if (!existing) {
+            const name = task.claimed_by_name || task.claimed_by.split('@')[0];
+            addNotification(name + ' confirmed they helped you. Your community is unlocked!', 'confirmed_' + task.id);
+          }
+        }
+      });
+    });
+  }
+}
+
+function showNotifications() {
+  // Mark all as read
+  if (state.notifications) {
+    state.notifications.forEach(n => n.read = true);
+  }
+  state.notificationsRead = true;
+  saveState();
+  updateNotificationBadge();
+
+  // Show notification panel
+  const existing = document.querySelector('.notif-panel');
+  if (existing) { existing.remove(); return; }
+
+  const panel = document.createElement('div');
+  panel.className = 'notif-panel';
+  panel.style.cssText = 'position:absolute;top:110px;left:16px;right:16px;background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;z-index:500;max-height:60vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:16px 20px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;justify-content:space-between;';
+  header.innerHTML = '<p style="font-size:14px;font-weight:700;color:var(--text);">Notifications</p><button onclick="this.closest(\'.notif-panel\').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">×</button>';
+  panel.appendChild(header);
+
+  const notifs = state.notifications || [];
+  if (notifs.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'text-align:center;color:var(--muted);font-size:14px;padding:24px;';
+    empty.textContent = 'No notifications yet.';
+    panel.appendChild(empty);
+  } else {
+    notifs.forEach(n => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:14px 20px;border-bottom:1px solid var(--card-border);';
+      const typeColors = {missed:'var(--warning)', reflection:'var(--accent)', info:'var(--muted)'};
+      const typeEmojis = {missed:'⚠️', reflection:'✦', info:'💬'};
+      const color = typeColors[n.type] || typeColors[n.type.split('_')[0]] || 'var(--accent)';
+      const emoji = typeEmojis[n.type] || typeEmojis[n.type.split('_')[0]] || '💬';
+      const time = new Date(n.time);
+      const timeStr = time.toLocaleDateString('en-AU', {day:'numeric', month:'short'});
+      item.innerHTML = '<div style="display:flex;gap:10px;align-items:flex-start;">'
+        + '<span style="font-size:16px;margin-top:1px;">' + emoji + '</span>'
+        + '<div><p style="font-size:14px;color:var(--text);line-height:1.5;margin-bottom:4px;">' + n.message + '</p>'
+        + '<p style="font-size:11px;color:var(--muted);">' + timeStr + '</p></div>'
+        + '</div>';
+      panel.appendChild(item);
+    });
+  }
+
+  document.querySelector('.phone').appendChild(panel);
 }
 
 // ============ QUESTIONNAIRE DATA ============
@@ -1907,6 +2159,61 @@ function initQuestionnaireScreens() {
 }
 
 
+
+
+function finishQuestionnaire() {
+  if(state.reflectionMode) {
+    // Monthly reflection complete
+    completeReflection();
+    goTo('s-main');
+    state.reflectionMode = false;
+  } else {
+    // Initial onboarding questionnaire
+    goTo('s7');
+  }
+}
+
+// ============ MONTHLY REFLECTION ============
+function checkReflectionDue() {
+  if (!state.lastReflectionDate) {
+    // First time — set after onboarding completes
+    return false;
+  }
+  const last = new Date(state.lastReflectionDate);
+  const now = new Date();
+  const daysDiff = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+  return daysDiff >= 30;
+}
+
+function completeReflection() {
+  // Recalculate dominant dimension
+  const dim = getDominantDimension();
+  state.monthlyFocus = dim;
+  state.lastReflectionDate = new Date().toISOString();
+  state.reflectionDue = false;
+  saveState();
+  renderMain();
+}
+
+function startReflection() {
+  // Reset questionnaire answers so they redo it fresh
+  state.questionnaireAnswers = {};
+  state.reflectionMode = true;
+  saveState();
+  // Re-render questionnaire screens
+  initQuestionnaireScreens();
+  goTo('sq1');
+}
+
+const DIM_NAMES = {body:'Body', mind:'Mind', connection:'Connection', soul:'Soul'};
+const DIM_EMOJIS = {body:'💪', mind:'🧠', connection:'🤝', soul:'✨'};
+const DIM_DESC = {
+  body:'Movement, nourishment and rest',
+  mind:'Clarity, stillness and mental health',
+  connection:'Relationships and showing up for others',
+  soul:'Purpose, joy and creative expression'
+};
+
 // ============ HABIT SYSTEM ============
 const HABIT_OPTIONS = {
   body:[
@@ -2002,11 +2309,21 @@ function renderHabitSection(content) {
         + '<div class="habit-check ' + (isDone ? 'done' : '') + '" onclick="completeHabit(' + i + ')">' + (isDone ? '✓' : '') + '</div>';
       content.appendChild(card);
 
-      const changeBtn = document.createElement('button');
-      changeBtn.className = 'habit-change-btn';
-      changeBtn.textContent = 'This habit isn\'t working for me';
-      changeBtn.onclick = () => showChangeModal(i);
-      content.appendChild(changeBtn);
+      // Only show change button if more than 1 habit (always keep at least one)
+      if(state.habits.length > 1) {
+        const changeBtn = document.createElement('button');
+        changeBtn.className = 'habit-change-btn';
+        changeBtn.textContent = 'This habit isn\'t working for me';
+        changeBtn.onclick = () => showChangeModal(i);
+        content.appendChild(changeBtn);
+      } else {
+        const changeBtn = document.createElement('button');
+        changeBtn.className = 'habit-change-btn';
+        changeBtn.textContent = 'This habit isn\'t working for me';
+        changeBtn.onclick = () => showChangeModal(i);
+        content.appendChild(changeBtn);
+        // Note: change modal will swap rather than remove when only 1 habit
+      }
     });
 
     // Add habit button
@@ -2042,6 +2359,7 @@ function completeHabit(i) {
     state.daysShowedUp = (state.daysShowedUp || 0) + 1;
     state.consecutiveMissed = 0;
     if (state.allBitMuch) state.reentryMode = true;
+    addNotification('Day ' + state.daysShowedUp + ' showed up for yourself. Keep going.', 'info');
   }
   saveState();
   renderMain();
@@ -2088,9 +2406,15 @@ function showAddHabitModal(replaceIndex) {
       optsHtml += `<button class="modal-opt" onclick="addHabit('${dim}','${opt.icon}',${JSON.stringify(opt.title)},${JSON.stringify(opt.small)},${ri})">${opt.icon} ${opt.title}</button>`;
     });
   });
+  const focus = state.monthlyFocus || getDominantDimension();
+  const focusName = DIM_NAMES[focus] || 'Connection';
+  const focusEmoji = DIM_EMOJIS[focus] || '🤝';
   overlay.innerHTML = `<div class="modal-sheet" style="max-height:70vh;overflow-y:auto;">
     <p class="modal-title">Choose a habit</p>
-    <p class="modal-sub">Pick something that feels right for where you are now.</p>
+    <div style="background:rgba(91,155,213,0.1);border:1.5px solid rgba(91,155,213,0.2);border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <p style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:2px;">${focusEmoji} Suggested focus this month</p>
+      <p style="font-size:13px;color:var(--muted);">Based on your reflection, ${focusName} habits might help you most right now — but pick whatever feels right.</p>
+    </div>
     ${optsHtml}
     <button class="modal-cancel" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
   </div>`;
@@ -2101,12 +2425,16 @@ function addHabit(dim, icon, title, small, replaceIndex) {
   if (!state.habits) state.habits = [];
   const newHabit = {icon, title, dim, small};
   if (replaceIndex !== null && replaceIndex !== undefined) {
+    // Replace existing — save old one to history
     if (!state.previousHabits) state.previousHabits = [];
     state.previousHabits.push(state.habits[replaceIndex]);
     state.habits[replaceIndex] = newHabit;
   } else {
-    state.habits.push(newHabit);
-    state.habitPhase = state.habits.length;
+    // Only add if under the 3 habit limit
+    if (state.habits.length < 3) {
+      state.habits.push(newHabit);
+      state.habitPhase = state.habits.length;
+    }
   }
   saveState(); renderMain();
 }
@@ -2121,10 +2449,22 @@ function clearState() {
 
 
 // Firebase task interactions
+
+function confirmMyTask(taskId) {
+  if(window.sbConfirmTask) {
+    window.sbConfirmTask(taskId).then(() => {
+      state.helpConfirmed = true;
+      saveState();
+      renderMain();
+    });
+  }
+}
+
 function fbGotYou(taskId, postedByUserId) {
   if(window.sbClaimTask && state.userEmail) {
-    window.sbClaimTask(taskId, state.userEmail);
+    window.sbClaimTask(taskId, state.userEmail, state.name || state.userEmail.split('@')[0]);
     state.timesShowedUpForOthers = (state.timesShowedUpForOthers||0) + 1;
+    addNotification('You said you\'ve got someone in your circle. Let them know when it\'s done!', 'info');
     saveState();
     renderMain();
   }
