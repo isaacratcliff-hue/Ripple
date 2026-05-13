@@ -1097,6 +1097,7 @@ async function handleAuth() {
       state.referralCode = result.user ? result.user.referral_code : '';
       if (result.user && result.user.onboarded) {
         // Map DB fields back to state
+        const loadedHabits = result.user.habits && result.user.habits.length > 0 ? result.user.habits : null;
         Object.assign(state, {
           name: result.user.name,
           location: result.user.location,
@@ -1105,7 +1106,7 @@ async function handleAuth() {
           feeling: result.user.feeling,
           daysShowedUp: result.user.days_showed_up || 0,
           timesShowedUpForOthers: result.user.times_showed_up_for_others || 0,
-          habits: result.user.habits || [],
+          habits: loadedHabits || state.habits || [],
           completedHabitsToday: result.user.completed_habits_today || {},
           completedToday: result.user.completed_today || false,
           questionnaireAnswers: result.user.questionnaire_answers || {},
@@ -1113,6 +1114,8 @@ async function handleAuth() {
           taskPosted: result.user.task_posted || false,
           helpConfirmed: result.user.help_confirmed || false,
           currentDay: result.user.current_day || 1,
+          monthlyFocus: result.user.monthly_focus || '',
+          lastReflectionDate: result.user.last_reflection_date || null,
         });
         saveState();
         renderMain();
@@ -2327,16 +2330,18 @@ function renderHabitSection(content) {
 
   // Habits
   if (!state.habits || state.habits.length === 0) {
-    // Seed a habit automatically if none exist
-    const dim = getDominantDimension();
-    const bank = DIM_ACTIONS[dim] ? DIM_ACTIONS[dim].flat : DIM_ACTIONS.mind.flat;
+    // Seed a habit automatically — never show empty state
+    const dim = state.monthlyFocus || getDominantDimension() || 'mind';
+    const feeling = state.feeling || 'flat';
+    const feelingKey = ['good','flat','overwhelmed','notgreat'].includes(feeling) ? feeling : 'flat';
+    const bank = (DIM_ACTIONS[dim] && DIM_ACTIONS[dim][feelingKey]) || DIM_ACTIONS.mind.flat;
     const a = bank[0];
     state.habits = [{icon: a.icon, title: a.title, dim: dim, small: a.desc}];
     state.habitPhase = 1;
     saveState();
   }
   if (false) {
-    // placeholder - habits always exist now
+    // placeholder
     // Show current habits
     const habitLabel = document.createElement('p');
     habitLabel.style.cssText = 'font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:12px;';
