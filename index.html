@@ -1016,7 +1016,8 @@ async function handleAuth() {
     }
     window.sbSignIn(email, password, (result) => {
       if (result.error) {
-        errorEl.textContent = result.error;
+        errorEl.style.color = 'var(--warning)';
+        errorEl.textContent = 'Sign in error: ' + result.error;
         btn.disabled = false;
         btn.textContent = 'Sign In';
         return;
