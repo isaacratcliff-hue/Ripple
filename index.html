@@ -252,96 +252,272 @@
     .phone{width:390px;height:844px;border-radius:44px;}
   }
 </style>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-  import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_7oNufywoPKEFuzRqURp4Mg_Q99hyeEh';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAAKvcyr3eOdL6mfPtwBkaizIYj3UCNraI",
-    authDomain: "a-thing-feef7.firebaseapp.com",
-    databaseURL: "https://a-thing-feef7-default-rtdb.firebaseio.com",
-    projectId: "a-thing-feef7",
-    storageBucket: "a-thing-feef7.firebasestorage.app",
-    messagingSenderId: "460372237675",
-    appId: "1:460372237675:web:7cacf8c5e00bf83445802e"
-  };
+  // Generate a random referral code
+  function generateReferralCode(name) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = (name || 'RIPPLE').toUpperCase().slice(0,4);
+    for(let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  // Sign up with email, password, referral code
+  window.sbSignUp = async function(email, password, referralCode, callback) {
+    // Check referral code exists
+    const { data: referrer, error: refError } = await supabase
+      .from('users')
+      .select('email, referral_code')
+      .eq('referral_code', referralCode.toUpperCase())
+      .single();
 
-  // Map access codes to user IDs
-  const USER_MAP = {
-    '19grevillearoaddwellingup': 'user1',
-    'frankaryagraceoliver': 'user2'
-  };
+    if (refError || !referrer) {
+      callback({ error: 'Invalid referral code. Ask a Ripple member for theirs.' });
+      return;
+    }
 
-  // Inner circle map - each user sees the other's tasks
-  const CIRCLE_MAP = {
-    'user1': 'user2',
-    'user2': 'user1'
-  };
-
-  window.firebaseDB = db;
-  window.firebaseRef = ref;
-  window.firebaseSet = set;
-  window.firebaseGet = get;
-  window.firebaseOnValue = onValue;
-  window.firebasePush = push;
-  window.USER_MAP = USER_MAP;
-  window.CIRCLE_MAP = CIRCLE_MAP;
-
-  // Current user ID (set on login)
-  window.currentUserId = null;
-
-  // Post a task to Firebase
-  window.fbPostTask = async function(taskText) {
-    if (!window.currentUserId) return;
-    const taskRef = ref(db, 'tasks/' + window.currentUserId + '/' + Date.now());
-    await set(taskRef, {
-      text: taskText,
-      timestamp: Date.now(),
-      confirmed: false,
-      postedBy: window.currentUserId,
+    // Create auth account
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email, password
     });
+
+    if (authError) {
+      callback({ error: authError.message });
+      return;
+    }
+
+    // Generate their referral code
+    const newReferralCode = generateReferralCode(email.split('@')[0]);
+
+    // Create user record
+    const { error: userError } = await supabase
+      .from('users')
+      .upsert({
+        email,
+        access_code: authData.user.id,
+        referral_code: newReferralCode,
+        referred_by: referralCode.toUpperCase(),
+        onboarded: false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'email' });
+
+    // Link inner circles
+    await supabase.from('inner_circle').upsert([
+      { user_code: email, circle_code: referrer.email },
+      { user_code: referrer.email, circle_code: email }
+    ], { onConflict: 'user_code,circle_code' });
+
+    callback({ success: true, userId: authData.user.id, email, referralCode: newReferralCode });
   };
 
-  // Get circle member's tasks (real time)
-  window.fbListenToCircleTasks = function(callback) {
-    if (!window.currentUserId) return;
-    const circleId = CIRCLE_MAP[window.currentUserId];
-    const tasksRef = ref(db, 'tasks/' + circleId);
-    onValue(tasksRef, (snapshot) => {
-      const data = snapshot.val();
-      const tasks = data ? Object.entries(data).map(([id, task]) => ({id, ...task})) : [];
-      callback(tasks);
-    });
+  // Sign in
+  window.sbSignIn = async function(email, password, callback) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { callback({ error: error.message }); return; }
+
+    // Load user data
+    const { data: userData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    callback({ success: true, user: userData, authUser: data.user });
   };
 
-  // Claim a task (I've got you)
-  window.fbClaimTask = async function(taskId, postedByUserId) {
-    const claimRef = ref(db, 'tasks/' + postedByUserId + '/' + taskId + '/claimedBy');
-    await set(claimRef, window.currentUserId);
+  // Save full user state to Supabase
+  window.sbSaveState = async function(email, stateData) {
+    if (!email) return;
+    const { error } = await supabase
+      .from('users')
+      .update({
+        name: stateData.name,
+        location: stateData.location,
+        interests: stateData.interests,
+        times: stateData.times,
+        feeling: stateData.feeling,
+        days_showed_up: stateData.daysShowedUp || 0,
+        times_showed_up_for_others: stateData.timesShowedUpForOthers || 0,
+        consecutive_missed: stateData.consecutiveMissed || 0,
+        habits: stateData.habits || [],
+        completed_habits_today: stateData.completedHabitsToday || {},
+        completed_today: stateData.completedToday || false,
+        questionnaire_answers: stateData.questionnaireAnswers || {},
+        onboarded: stateData.onboarded || false,
+        task_posted: stateData.taskPosted || false,
+        help_confirmed: stateData.helpConfirmed || false,
+        current_day: stateData.currentDay || 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', email);
+    if (error) console.error('Save error:', error);
   };
 
-  // Confirm a task was completed
-  window.fbConfirmTask = async function(taskId, postedByUserId) {
-    const confirmRef = ref(db, 'tasks/' + postedByUserId + '/' + taskId + '/confirmed');
-    await set(confirmRef, true);
+  // Post a task
+  window.sbPostTask = async function(email, taskText) {
+    const { error } = await supabase
+      .from('tasks')
+      .insert({ posted_by: email, text: taskText });
+    if (error) console.error('Post task error:', error);
   };
 
-  // Listen to own tasks (to see if someone claimed/confirmed)
-  window.fbListenToMyTasks = function(callback) {
-    if (!window.currentUserId) return;
-    const tasksRef = ref(db, 'tasks/' + window.currentUserId);
-    onValue(tasksRef, (snapshot) => {
-      const data = snapshot.val();
-      const tasks = data ? Object.entries(data).map(([id, task]) => ({id, ...task})) : [];
-      callback(tasks);
-    });
+  // Get circle tasks
+  window.sbListenToCircleTasks = function(email, callback) {
+    supabase
+      .from('inner_circle')
+      .select('circle_code')
+      .eq('user_code', email)
+      .then(({ data }) => {
+        if (!data || data.length === 0) { callback([]); return; }
+        const circleEmail = data[0].circle_code;
+        const fetchTasks = () => {
+          supabase.from('tasks').select('*').eq('posted_by', circleEmail)
+            .then(({ data: tasks }) => callback(tasks || []));
+        };
+        fetchTasks();
+        setInterval(fetchTasks, 10000);
+      });
   };
 
-  console.log('Firebase initialised');
+  // Claim a task
+  window.sbClaimTask = async function(taskId, claimerEmail) {
+    await supabase.from('tasks').update({ claimed_by: claimerEmail }).eq('id', taskId);
+  };
+
+  // Confirm a task
+  window.sbConfirmTask = async function(taskId) {
+    await supabase.from('tasks').update({ confirmed: true }).eq('id', taskId);
+  };
+
+  console.log('Supabase auth initialised');
 </script>
+
+<script>
+  const SUPABASE_URL = 'https://hgvzhgrtiibbovupnjpo.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_7oNufywoPKEFuzRqURp4Mg_Q99hyeEh';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // Save full user state to Supabase
+  window.sbSaveState = async function(accessCode, stateData) {
+    const { error } = await supabase
+      .from('users')
+      .upsert({
+        access_code: accessCode,
+        name: stateData.name,
+        location: stateData.location,
+        interests: stateData.interests,
+        times: stateData.times,
+        feeling: stateData.feeling,
+        days_showed_up: stateData.daysShowedUp || 0,
+        times_showed_up_for_others: stateData.timesShowedUpForOthers || 0,
+        consecutive_missed: stateData.consecutiveMissed || 0,
+        habits: stateData.habits || [],
+        completed_habits_today: stateData.completedHabitsToday || {},
+        completed_today: stateData.completedToday || false,
+        questionnaire_answers: stateData.questionnaireAnswers || {},
+        onboarded: stateData.onboarded || false,
+        task_posted: stateData.taskPosted || false,
+        help_confirmed: stateData.helpConfirmed || false,
+        current_day: stateData.currentDay || 1,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'access_code' });
+    if (error) console.error('Save error:', error);
+  };
+
+  // Load user state from Supabase
+  window.sbLoadState = async function(accessCode) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('access_code', accessCode)
+      .single();
+    if (error || !data) return null;
+    return {
+      name: data.name,
+      location: data.location,
+      interests: data.interests || [],
+      times: data.times || [],
+      feeling: data.feeling,
+      daysShowedUp: data.days_showed_up || 0,
+      timesShowedUpForOthers: data.times_showed_up_for_others || 0,
+      consecutiveMissed: data.consecutive_missed || 0,
+      habits: data.habits || [],
+      completedHabitsToday: data.completed_habits_today || {},
+      completedToday: data.completed_today || false,
+      questionnaireAnswers: data.questionnaire_answers || {},
+      onboarded: data.onboarded || false,
+      taskPosted: data.task_posted || false,
+      helpConfirmed: data.help_confirmed || false,
+      currentDay: data.current_day || 1,
+    };
+  };
+
+  // Post a task
+  window.sbPostTask = async function(accessCode, taskText) {
+    const { error } = await supabase
+      .from('tasks')
+      .insert({ posted_by: accessCode, text: taskText });
+    if (error) console.error('Post task error:', error);
+  };
+
+  // Get circle tasks (real time)
+  window.sbListenToCircleTasks = function(accessCode, callback) {
+    // First get the circle member's code
+    supabase
+      .from('inner_circle')
+      .select('circle_code')
+      .eq('user_code', accessCode)
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        const circleCode = data[0].circle_code;
+        // Get their tasks
+        const fetchTasks = () => {
+          supabase
+            .from('tasks')
+            .select('*')
+            .eq('posted_by', circleCode)
+            .then(({ data: tasks }) => callback(tasks || []));
+        };
+        fetchTasks();
+        // Poll every 10 seconds for updates
+        setInterval(fetchTasks, 10000);
+      });
+  };
+
+  // Claim a task
+  window.sbClaimTask = async function(taskId, claimerCode) {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ claimed_by: claimerCode })
+      .eq('id', taskId);
+    if (error) console.error('Claim error:', error);
+  };
+
+  // Confirm a task
+  window.sbConfirmTask = async function(taskId) {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ confirmed: true })
+      .eq('id', taskId);
+    if (error) console.error('Confirm error:', error);
+  };
+
+  // Get my own tasks
+  window.sbGetMyTasks = function(accessCode, callback) {
+    supabase
+      .from('tasks')
+      .select('*')
+      .eq('posted_by', accessCode)
+      .then(({ data }) => callback(data || []));
+  };
+
+  console.log('Supabase initialised');
+</script>
+
 </head>
 <body>
 <div class="phone">
@@ -693,6 +869,10 @@ function saveState() {
   try {
     localStorage.setItem('ripple_state', JSON.stringify(state));
   } catch(e) {}
+  // Also save to Supabase if logged in
+  if(state.userEmail && window.sbSaveState) {
+    window.sbSaveState(state.userEmail, state);
+  }
 }
 
 function loadState() {
@@ -772,17 +952,121 @@ function switchNav(tab,btn){
   else{renderProfile();goTo('s-profile');}
 }
 
-function checkLogin(){
-  const input=document.getElementById('login-input').value.trim();
-  const codes=['19grevillearoaddwellingup','frankaryagraceoliver'];
-  if(codes.includes(input)){
-    // Set Firebase user identity
-    if(window.USER_MAP) window.currentUserId = window.USER_MAP[input];
-    state.accessCode = input;
-    saveState();
-    goTo('s1');
+let currentAuthTab = 'signin';
+
+function switchAuthTab(tab) {
+  currentAuthTab = tab;
+  const signinForm = document.getElementById('signin-form');
+  const signupForm = document.getElementById('signup-form');
+  const signinTab = document.getElementById('tab-signin');
+  const signupTab = document.getElementById('tab-signup');
+  const authBtn = document.getElementById('auth-btn');
+  if (tab === 'signin') {
+    signinForm.style.display = 'block';
+    signupForm.style.display = 'none';
+    signinTab.style.background = 'var(--accent)';
+    signinTab.style.color = '#0A0A0F';
+    signupTab.style.background = 'none';
+    signupTab.style.color = 'var(--muted)';
+    authBtn.textContent = 'Sign In';
+  } else {
+    signinForm.style.display = 'none';
+    signupForm.style.display = 'block';
+    signupTab.style.background = 'var(--accent)';
+    signupTab.style.color = '#0A0A0F';
+    signinTab.style.background = 'none';
+    signinTab.style.color = 'var(--muted)';
+    authBtn.textContent = 'Create Account';
   }
-  else{document.getElementById('login-error').textContent='Incorrect code. Try again.';document.getElementById('login-input').value='';}
+  document.getElementById('login-error').textContent = '';
+}
+
+function handleAuth() {
+  const btn = document.getElementById('auth-btn');
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+
+  if (currentAuthTab === 'signin') {
+    const email = document.getElementById('signin-email').value.trim();
+    const password = document.getElementById('signin-password').value;
+    if (!email || !password) {
+      errorEl.textContent = 'Please enter your email and password.';
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      return;
+    }
+    window.sbSignIn(email, password, (result) => {
+      if (result.error) {
+        errorEl.textContent = result.error;
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+        return;
+      }
+      state.userEmail = email;
+      state.referralCode = result.user ? result.user.referral_code : '';
+      if (result.user && result.user.onboarded) {
+        // Map DB fields back to state
+        Object.assign(state, {
+          name: result.user.name,
+          location: result.user.location,
+          interests: result.user.interests || [],
+          times: result.user.times || [],
+          feeling: result.user.feeling,
+          daysShowedUp: result.user.days_showed_up || 0,
+          timesShowedUpForOthers: result.user.times_showed_up_for_others || 0,
+          habits: result.user.habits || [],
+          completedHabitsToday: result.user.completed_habits_today || {},
+          completedToday: result.user.completed_today || false,
+          questionnaireAnswers: result.user.questionnaire_answers || {},
+          onboarded: true,
+          taskPosted: result.user.task_posted || false,
+          helpConfirmed: result.user.help_confirmed || false,
+          currentDay: result.user.current_day || 1,
+        });
+        saveState();
+        renderMain();
+        goTo('s-main');
+      } else {
+        saveState();
+        goTo('s1');
+      }
+    });
+  } else {
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+    const referral = document.getElementById('signup-referral').value.trim().toUpperCase();
+    if (!email || !password || !referral) {
+      errorEl.textContent = 'Please fill in all fields.';
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+    if (password.length < 6) {
+      errorEl.textContent = 'Password must be at least 6 characters.';
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+    window.sbSignUp(email, password, referral, (result) => {
+      if (result.error) {
+        errorEl.textContent = result.error;
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+      }
+      state.userEmail = email;
+      state.referralCode = result.referralCode;
+      saveState();
+      // Show confirmation if email confirm is on
+      errorEl.style.color = 'var(--accent)';
+      errorEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+      setTimeout(() => switchAuthTab('signin'), 2000);
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+    });
+  }
 }
 
 function renderProgress(step,total,pbId){
@@ -871,7 +1155,7 @@ function renderActionScreen(){
   });
 }
 
-function goToMain(){state.onboarded=true;saveState();renderMain();goTo('s-main');}
+function goToMain(){state.onboarded=true;saveState();renderMain();goTo('s-main');showReferralCode();}
 
 function getUnlockState(){
   const restricted=(state.consecutiveMissed||0)>=3;
@@ -1030,11 +1314,9 @@ function renderInnerRippleTab(content,unlock){
     circleContainer.id = 'circle-tasks-container';
     content.appendChild(circleContainer);
 
-    if(window.fbListenToCircleTasks && window.currentUserId) {
-      console.log('Firebase connected. User:', window.currentUserId);
+    if(window.sbListenToCircleTasks && state.userEmail) {
       circleContainer.innerHTML = '<p style="font-size:13px;color:var(--muted);text-align:center;padding:20px;">Loading your circle\'s tasks...</p>';
-      window.fbListenToCircleTasks((tasks) => {
-        console.log('Tasks received from Firebase:', tasks);
+      window.sbListenToCircleTasks(state.userEmail, (tasks) => {
         if(tasks.length === 0) {
           const userId = window.currentUserId || 'not set';
           const circleId = window.CIRCLE_MAP ? window.CIRCLE_MAP[userId] : 'unknown';
@@ -1062,10 +1344,6 @@ function renderInnerRippleTab(content,unlock){
         }
       });
     } else {
-      const debugMsg = document.createElement('div');
-      debugMsg.style.cssText = 'background:#fff3cd;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:#856404;';
-      debugMsg.innerHTML = 'Firebase status: ' + (window.fbListenToCircleTasks ? 'connected' : 'not connected') + '<br>User ID: ' + (window.currentUserId || 'not set');
-      circleContainer.appendChild(debugMsg);
       // Fallback mock tasks
       INNER_CIRCLE_TASKS.forEach((task,i)=>{
         const card=document.createElement('div');card.className='task-card';
@@ -1087,7 +1365,11 @@ function renderInnerRippleTab(content,unlock){
     myTaskLabel.textContent='Your tasks';
     content.appendChild(myTaskLabel);
 
-    // All my tasks
+    // Load my tasks from Supabase
+    const myTasksContainer = document.createElement('div');
+    myTasksContainer.id = 'my-tasks-container';
+    content.appendChild(myTasksContainer);
+
     const allMyTasks = state.myTasks && state.myTasks.length > 0 ? state.myTasks : (state.myTask ? [state.myTask] : []);
     allMyTasks.forEach((task,idx)=>{
       const myCard=document.createElement('div');myCard.className='task-card';
@@ -1126,8 +1408,8 @@ function postTask(){
   state.myTask=task;
   state.taskPosted=true;
   state.showPostForm=false;
-  // Write to Firebase if connected
-  if(window.fbPostTask) window.fbPostTask(task);
+  // Write to Supabase
+  if(window.sbPostTask && state.userEmail) window.sbPostTask(state.userEmail, task);
   saveState();
   renderMain();
 }
@@ -1491,8 +1773,8 @@ function clearState() {
 
 // Firebase task interactions
 function fbGotYou(taskId, postedByUserId) {
-  if(window.fbClaimTask) {
-    window.fbClaimTask(taskId, postedByUserId);
+  if(window.sbClaimTask && state.userEmail) {
+    window.sbClaimTask(taskId, state.userEmail);
     state.timesShowedUpForOthers = (state.timesShowedUpForOthers||0) + 1;
     saveState();
     renderMain();
@@ -1500,19 +1782,31 @@ function fbGotYou(taskId, postedByUserId) {
 }
 
 function fbConfirm(taskId, postedByUserId) {
-  if(window.fbConfirmTask) {
-    window.fbConfirmTask(taskId, postedByUserId);
+  if(window.sbConfirmTask) {
+    window.sbConfirmTask(taskId);
     state.helpConfirmed = true;
     saveState();
     renderMain();
   }
 }
 
-// Restore Firebase user on page load
+
+function showReferralCode() {
+  if (!state.referralCode) return;
+  // Show referral code toast after onboarding
+  setTimeout(() => {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:absolute;bottom:120px;left:20px;right:20px;background:var(--card);border:1.5px solid var(--accent);border-radius:16px;padding:16px;z-index:999;text-align:center;';
+    toast.innerHTML = '<p style="font-size:12px;color:var(--muted);margin-bottom:6px;">Your referral code</p>'
+      + '<p style="font-size:24px;font-weight:700;color:var(--accent);letter-spacing:3px;">' + state.referralCode + '</p>'
+      + '<p style="font-size:12px;color:var(--muted);margin-top:6px;">Share this to invite someone into your inner circle</p>';
+    document.querySelector('.phone').appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+  }, 1000);
+}
+
 function restoreFirebaseUser() {
-  if(state.accessCode && window.USER_MAP) {
-    window.currentUserId = window.USER_MAP[state.accessCode];
-  }
+  // No-op with Supabase - handled in checkLogin
 }
 
 // ============ INIT ============
