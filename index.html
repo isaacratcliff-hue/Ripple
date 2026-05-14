@@ -1097,7 +1097,23 @@ async function handleAuth() {
       state.referralCode = result.user ? result.user.referral_code : '';
       if (result.user && result.user.onboarded) {
         // Map DB fields back to state
-        const loadedHabits = result.user.habits && result.user.habits.length > 0 ? result.user.habits : null;
+        // Load habits - never allow empty
+        let loadedHabits = (result.user.habits && result.user.habits.length > 0) ? result.user.habits : null;
+        
+        // Seed a habit if none exist
+        if (!loadedHabits) {
+          const qAnswers = result.user.questionnaire_answers || {};
+          const scores = {body:0, mind:0, connection:0, soul:0};
+          const qs = [{id:'sq1',dim:'body'},{id:'sq2',dim:'body'},{id:'sq3',dim:'body'},{id:'sq4',dim:'mind'},{id:'sq5',dim:'mind'},{id:'sq6',dim:'mind'},{id:'sq7',dim:'connection'},{id:'sq8',dim:'connection'},{id:'sq9',dim:'connection'},{id:'sq10',dim:'soul'},{id:'sq11',dim:'soul'},{id:'sq12',dim:'soul'}];
+          qs.forEach(q => { if(qAnswers[q.id] !== undefined) scores[q.dim] += qAnswers[q.id]; });
+          const dim = Object.entries(scores).sort((a,b) => b[1]-a[1])[0][0] || 'mind';
+          const feeling = result.user.feeling || 'flat';
+          const feelingKey = ['good','flat','overwhelmed','notgreat'].includes(feeling) ? feeling : 'flat';
+          const bank = (window._DIM_ACTIONS && window._DIM_ACTIONS[dim] && window._DIM_ACTIONS[dim][feelingKey]) || [{icon:'🌬️',title:'Take 5 slow breaths',desc:'In for 4, hold for 4, out for 6.',dim:'mind',small:'One slow breath'}];
+          const a = bank[0];
+          loadedHabits = [{icon: a.icon, title: a.title, dim: dim, small: a.desc || ''}];
+        }
+
         Object.assign(state, {
           name: result.user.name,
           location: result.user.location,
@@ -1106,7 +1122,7 @@ async function handleAuth() {
           feeling: result.user.feeling,
           daysShowedUp: result.user.days_showed_up || 0,
           timesShowedUpForOthers: result.user.times_showed_up_for_others || 0,
-          habits: loadedHabits || state.habits || [],
+          habits: loadedHabits,
           completedHabitsToday: result.user.completed_habits_today || {},
           completedToday: result.user.completed_today || false,
           questionnaireAnswers: result.user.questionnaire_answers || {},
@@ -1953,7 +1969,7 @@ const QUESTIONS = [
   {id:'sq12',dim:'soul',opts:['Pretty clear — I know what I\'m about','Somewhat clear, still figuring some things out','It\'s foggy — I\'ve lost the thread a bit','I genuinely don\'t know right now'],scores:[0,1,2,3]},
 ];
 
-const DIM_ACTIONS = {
+window._DIM_ACTIONS = {}; const DIM_ACTIONS = window._DIM_ACTIONS = {
   body: {
     good: [
       {icon:'🏃',title:'Go for a 20 minute run at an easy pace',desc:'No pressure on pace. Just move.'},
