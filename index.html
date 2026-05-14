@@ -1545,6 +1545,11 @@ function changeDay(delta){
 }
 
 function renderHomeTab(content,unlock){
+  // DEBUG
+  const _d=document.createElement('div');
+  _d.style.cssText='background:#111;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#aaa;word-break:break-all;';
+  _d.textContent='habits='+JSON.stringify(state.habits||[])+'|feeling='+state.feeling;
+  content.appendChild(_d);
   if(unlock.restricted){
     const rb=document.createElement('div');rb.className='restriction-banner';
     rb.innerHTML=`<div class="rb-title">⚠️ You've missed a few days</div><div class="rb-sub">Your community tabs have been paused. Show up for yourself again to re-unlock them. Your inner circle has been gently notified you might need a hand.</div>`;
