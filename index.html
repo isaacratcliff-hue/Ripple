@@ -2590,6 +2590,18 @@ function showReferralCode() {
   }, 1000);
 }
 
+
+function logOut() {
+  // Sign out from Supabase auth
+  if(window._DIM_ACTIONS && window.supabase) {
+    loadSupabase().then(client => client.auth.signOut()).catch(() => {});
+  }
+  // Clear local state
+  localStorage.removeItem('ripple_state');
+  // Reload to login screen
+  location.reload();
+}
+
 function restoreFirebaseUser() {
   // No-op with Supabase - handled in checkLogin
 }
