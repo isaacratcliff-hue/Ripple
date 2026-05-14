@@ -1528,7 +1528,7 @@ function renderMain(){
   // Day simulator
   const sim=document.createElement('div');
   sim.className='day-sim';
-  sim.innerHTML=`<div><div class="day-sim-label">📅 Day simulator</div><div style="font-size:10px;color:#333;margin-top:2px;">Tap to test unlock progression</div></div><div class="day-sim-controls"><button class="day-sim-btn" onclick="changeDay(-1)">−</button><span class="day-sim-num">${state.currentDay}</span><button class="day-sim-btn" onclick="changeDay(1)">+</button></div>`;
+  sim.innerHTML=`<div><div class="day-sim-label">📅 Day simulator</div><div style="font-size:10px;color:#333;margin-top:2px;">Tap to test unlock progression</div></div><div class="day-sim-controls"><button class="day-sim-btn" onclick="resetProgress()" style="font-size:10px;padding:4px 8px;border-radius:8px;">↺</button><button class="day-sim-btn" onclick="changeDay(-1)">−</button><span class="day-sim-num">${state.currentDay}</span><button class="day-sim-btn" onclick="changeDay(1)">+</button></div>`;
   content.appendChild(sim);
 
   const unlock=getUnlockState();
@@ -1537,6 +1537,34 @@ function renderMain(){
   else if(state.activeTab==='noticeboard')renderNoticeboardTab(content);
   else if(state.activeTab==='events')renderEventsTab(content);
   else if(state.activeTab==='social')renderSocialTab(content);
+}
+
+
+function resetProgress() {
+  // Reset all progress but keep onboarding data
+  state.currentDay = 1;
+  state.daysShowedUp = 0;
+  state.timesShowedUpForOthers = 0;
+  state.consecutiveMissed = 0;
+  state.completedToday = false;
+  state.completedHabitsToday = {};
+  state.habitStreaks = {};
+  state.habitUnlockPhase = 1;
+  state.masteredHabits = [];
+  state.journalEntries = [];
+  state.notifications = [];
+  state.taskPosted = false;
+  state.helpConfirmed = false;
+  state.allBitMuch = false;
+  state.reentryMode = false;
+  // Re-seed first habit from dimension
+  const dim = state.monthlyFocus || getDominantDimension() || 'mind';
+  const feelingKey = ['good','flat','overwhelmed','notgreat'].includes(state.feeling) ? state.feeling : 'flat';
+  const bank = (DIM_ACTIONS[dim] && DIM_ACTIONS[dim][feelingKey]) || DIM_ACTIONS.mind.flat;
+  const a = bank[0];
+  state.habits = [{icon: a.icon, title: a.title, dim: dim, small: a.desc}];
+  saveState();
+  renderMain();
 }
 
 function changeDay(delta){
