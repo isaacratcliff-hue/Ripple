@@ -2186,6 +2186,9 @@ function getTodayPrompt() {
 
 function getTodayKey() {
   const d = new Date();
+  // Offset by simulator days
+  const offset = (state.currentDay || 1) - 1;
+  d.setDate(d.getDate() + offset);
   return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
 }
 
