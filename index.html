@@ -1904,15 +1904,37 @@ function renderJournalCard(content) {
   textarea.style.cssText = 'width:100%;min-height:100px;padding:14px;border-radius:12px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:14px;font-family:DM Sans,sans-serif;outline:none;resize:none;line-height:1.6;box-sizing:border-box;';
   textarea.value = todayEntry ? todayEntry.text : '';
 
+  const savedMsg = document.createElement('p');
+  savedMsg.style.cssText = 'font-size:11px;color:var(--muted);margin-top:8px;opacity:0;transition:opacity 0.5s;font-family:DM Sans,sans-serif;letter-spacing:0.5px;';
+  savedMsg.textContent = 'This stays here ✦';
+
+  // If already written today, lock immediately
+  if (todayEntry && todayEntry.text) {
+    textarea.readOnly = true;
+    textarea.style.opacity = '0.6';
+    textarea.style.cursor = 'default';
+    savedMsg.style.opacity = '1';
+  }
+
   let saveTimeout;
   textarea.addEventListener('input', () => {
+    if (textarea.readOnly) return;
     clearTimeout(saveTimeout);
+    savedMsg.style.opacity = '0';
     saveTimeout = setTimeout(() => {
-      if (textarea.value.trim()) saveJournalEntry(textarea.value.trim());
-    }, 1000);
+      if (textarea.value.trim()) {
+        saveJournalEntry(textarea.value.trim());
+        // Lock the textarea
+        textarea.readOnly = true;
+        textarea.style.opacity = '0.6';
+        textarea.style.cursor = 'default';
+        savedMsg.style.opacity = '1';
+      }
+    }, 10000);
   });
 
   card.appendChild(textarea);
+  card.appendChild(savedMsg);
 
   if (state.journalEntries && state.journalEntries.length > 1) {
     const historyBtn = document.createElement('button');
