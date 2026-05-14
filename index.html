@@ -1841,6 +1841,313 @@ function renderProfile(){
 }
 
 
+
+
+
+// ============ JOURNAL RENDER ============
+function renderJournalCard(content) {
+  const prompt = getTodayPrompt();
+  const todayEntry = getTodayEntry();
+  const dim = state.monthlyFocus || getDominantDimension() || 'mind';
+  const dimColors = {body:'#C8F55A', mind:'#5AC8F5', connection:'#F55AC8', soul:'#C85AF5'};
+  const color = dimColors[dim] || 'var(--accent)';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border:1.5px solid var(--card-border);border-radius:20px;padding:20px;margin-bottom:14px;';
+
+  card.innerHTML = '<p style="font-size:10px;color:' + color + ';text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px;">✦ Today\'s reflection</p>'
+    + '<p style="font-family:Playfair Display,serif;font-size:17px;color:var(--text);line-height:1.5;margin-bottom:14px;">' + prompt + '</p>';
+
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = 'Write freely. This is just for you.';
+  textarea.style.cssText = 'width:100%;min-height:100px;padding:14px;border-radius:12px;border:1.5px solid var(--card-border);background:var(--pill);color:var(--text);font-size:14px;font-family:DM Sans,sans-serif;outline:none;resize:none;line-height:1.6;box-sizing:border-box;';
+  textarea.value = todayEntry ? todayEntry.text : '';
+
+  let saveTimeout;
+  textarea.addEventListener('input', () => {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      if (textarea.value.trim()) saveJournalEntry(textarea.value.trim());
+    }, 1000);
+  });
+
+  card.appendChild(textarea);
+
+  if (state.journalEntries && state.journalEntries.length > 1) {
+    const historyBtn = document.createElement('button');
+    historyBtn.style.cssText = 'margin-top:12px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;font-family:DM Sans,sans-serif;padding:0;text-decoration:underline;';
+    historyBtn.textContent = 'View past entries →';
+    historyBtn.onclick = showJournalHistory;
+    card.appendChild(historyBtn);
+  }
+
+  content.appendChild(card);
+}
+
+function showJournalHistory() {
+  const existing = document.querySelector('.journal-panel');
+  if (existing) { existing.remove(); return; }
+
+  const panel = document.createElement('div');
+  panel.className = 'journal-panel';
+  panel.style.cssText = 'position:absolute;inset:0;background:var(--bg);z-index:500;overflow-y:auto;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:56px 24px 20px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;justify-content:space-between;';
+  header.innerHTML = '<h1 style="font-family:Playfair Display,serif;font-size:24px;color:var(--text);">Your journal</h1>'
+    + '<button onclick="this.closest(\'.journal-panel\').remove()" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;font-family:DM Sans,sans-serif;">← Back</button>';
+  panel.appendChild(header);
+
+  const entries = state.journalEntries || [];
+  if (entries.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'text-align:center;color:var(--muted);font-size:14px;padding:40px 24px;';
+    empty.textContent = 'No entries yet.';
+    panel.appendChild(empty);
+  } else {
+    entries.forEach(entry => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--card-border);';
+      const date = new Date(entry.date);
+      const dateStr = date.toLocaleDateString('en-AU', {weekday:'long', day:'numeric', month:'long'});
+      item.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-bottom:8px;">' + dateStr + '</p>'
+        + '<p style="font-family:Playfair Display,serif;font-size:15px;color:var(--text);line-height:1.5;margin-bottom:10px;font-style:italic;">' + entry.prompt + '</p>'
+        + '<p style="font-size:14px;color:var(--text);line-height:1.7;">' + entry.text + '</p>';
+      panel.appendChild(item);
+    });
+  }
+
+  document.querySelector('.phone').appendChild(panel);
+}
+
+// ============ HABIT MASTERY ============
+function updateHabitStreaks() {
+  if (!state.habits) return;
+  if (!state.habitStreaks) state.habitStreaks = {};
+  
+  state.habits.forEach((habit, i) => {
+    const key = 'habit_' + i;
+    if (state.completedHabitsToday && state.completedHabitsToday[i]) {
+      state.habitStreaks[key] = (state.habitStreaks[key] || 0) + 1;
+    } else if (state.completedToday === false) {
+      // Only reset if the day has passed without completion
+      state.habitStreaks[key] = 0;
+    }
+  });
+  
+  // Check unlock phase
+  const maxStreak = Math.max(...Object.values(state.habitStreaks || {0: 0}));
+  if (maxStreak >= 7 && state.habits.length < 3) {
+    state.habitUnlockPhase = 3;
+  } else if (maxStreak >= 3 && state.habits.length < 2) {
+    state.habitUnlockPhase = 2;
+  }
+  
+  // Check for mastered habits (21 days)
+  if (!state.masteredHabits) state.masteredHabits = [];
+  const toMaster = [];
+  state.habits.forEach((habit, i) => {
+    const key = 'habit_' + i;
+    if ((state.habitStreaks[key] || 0) >= 21) {
+      toMaster.push({...habit, masteredAt: new Date().toISOString(), streak: state.habitStreaks[key]});
+    }
+  });
+  
+  if (toMaster.length > 0) {
+    toMaster.forEach(h => {
+      state.masteredHabits.unshift(h);
+      // Remove from active habits
+      const idx = state.habits.findIndex(ah => ah.title === h.title);
+      if (idx >= 0) {
+        state.habits.splice(idx, 1);
+        // Remove streak
+        delete state.habitStreaks['habit_' + idx];
+      }
+    });
+    saveState();
+    // Show mastery prompt
+    showMasteryPrompt(toMaster[0]);
+  }
+}
+
+function showMasteryPrompt(habit) {
+  const existing = document.querySelector('.mastery-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.className = 'mastery-modal';
+  modal.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,0.8);z-index:600;display:flex;align-items:center;justify-content:center;padding:32px;';
+  modal.innerHTML = `<div style="background:var(--card);border-radius:24px;padding:32px 24px;text-align:center;border:1.5px solid var(--accent);">
+    <div style="font-size:48px;margin-bottom:16px;">🏆</div>
+    <p style="font-family:Playfair Display,serif;font-size:22px;color:var(--accent);margin-bottom:12px;">You nailed it.</p>
+    <p style="font-size:15px;color:var(--text);margin-bottom:8px;font-weight:600;">${habit.icon} ${habit.title}</p>
+    <p style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:24px;">21 days. That habit is yours now. Time to choose a new one to master.</p>
+    <button onclick="this.closest('.mastery-modal').remove();showAddHabitModal(null);" style="width:100%;padding:16px;border-radius:14px;border:none;background:var(--accent);color:#0A0A0F;font-size:15px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;">Choose my next habit →</button>
+    <button onclick="this.closest('.mastery-modal').remove();" style="width:100%;padding:12px;border-radius:14px;border:none;background:none;color:var(--muted);font-size:14px;cursor:pointer;font-family:DM Sans,sans-serif;margin-top:8px;">I\'ll choose later</button>
+  </div>`;
+  document.querySelector('.phone').appendChild(modal);
+}
+
+// ============ JOURNAL PROMPTS ============
+const JOURNAL_PROMPTS = {
+  body: {
+    good: [
+      "What did you do today that made your body feel good?",
+      "How did moving your body change your mood today?",
+      "What does feeling physically strong mean to you?",
+      "What small thing are you doing consistently that\'s adding up?",
+      "What does your body need more of right now?",
+    ],
+    flat: [
+      "What is your body trying to tell you today?",
+      "When did you last feel physically at ease? What was happening?",
+      "What would looking after yourself look like today — just today?",
+      "What\'s one small physical thing you could do right now?",
+      "How are you treating your body when you\'re not feeling your best?",
+    ],
+    overwhelmed: [
+      "Where are you holding tension in your body right now?",
+      "What does your body need that you haven\'t given it today?",
+      "If your body could speak, what would it say?",
+      "What physical comfort is available to you right now?",
+      "When did you last feel physically settled? What helped?",
+    ],
+    notgreat: [
+      "What is the smallest kind thing you could do for your body today?",
+      "Where does the heaviness sit in your body?",
+      "What would rest actually look like for you right now?",
+      "What has your body carried today that it shouldn\'t have to?",
+      "If you could give your body one thing it needs, what would it be?",
+    ],
+  },
+  mind: {
+    good: [
+      "What\'s something you\'ve been thinking about that excites you?",
+      "What did you learn or notice today that stayed with you?",
+      "What\'s a thought you\'d like to explore further?",
+      "When did your mind feel most clear today?",
+      "What\'s something you want to remember from this week?",
+    ],
+    flat: [
+      "What\'s been quietly taking up space in your head?",
+      "What thought keeps coming back, uninvited?",
+      "If you could put down one worry right now, what would it be?",
+      "What does mental rest look like for you?",
+      "What\'s one thing you\'ve been overthinking?",
+    ],
+    overwhelmed: [
+      "Write down everything that\'s in your head right now. Just get it out.",
+      "What\'s the one thing making everything feel like too much?",
+      "What would you tell a friend who felt the way you do right now?",
+      "What\'s true right now, even when everything feels uncertain?",
+      "What can you put down, even just for today?",
+    ],
+    notgreat: [
+      "What\'s one true thing you can hold onto right now?",
+      "What thought is making today harder than it needs to be?",
+      "You don\'t have to solve anything. What do you just need to say?",
+      "What would it feel like to give yourself permission to struggle today?",
+      "What\'s one small thing that felt okay today, even if nothing else did?",
+    ],
+  },
+  connection: {
+    good: [
+      "Who made you feel seen recently? What did they do?",
+      "What\'s a connection in your life you\'re grateful for right now?",
+      "Is there someone you\'ve been meaning to reach out to? What\'s stopping you?",
+      "What does being a good friend mean to you?",
+      "What\'s something you\'d like to share with someone but haven\'t?",
+    ],
+    flat: [
+      "Who could you reach out to today, even with just a few words?",
+      "When did you last feel truly connected to someone? What made it real?",
+      "What does loneliness feel like for you? Where does it show up?",
+      "Is there a relationship you\'ve been neglecting? What\'s one small step?",
+      "What do you wish someone would ask you right now?",
+    ],
+    overwhelmed: [
+      "Who is one person you trust right now? What would you want to tell them?",
+      "What\'s one thing you wish someone understood about how you\'re feeling?",
+      "Is there something you\'ve been carrying alone that you don\'t have to?",
+      "What would it feel like to let someone in today, even just a little?",
+      "Who showed up for you recently? Did you let them?",
+    ],
+    notgreat: [
+      "You don\'t have to be okay. Who is one person who would want to know that?",
+      "What\'s one thing someone could do or say that would help right now?",
+      "When did you last feel like you weren\'t alone? What was that like?",
+      "What\'s stopping you from reaching out to someone today?",
+      "Is there someone you\'re pushing away? Why?",
+    ],
+  },
+  soul: {
+    good: [
+      "What brought you genuine joy today — no reason, just joy?",
+      "What feels most alive in you right now?",
+      "What are you doing that feels meaningful, even in small ways?",
+      "What\'s something you\'re building that matters to you?",
+      "What did you create, notice, or experience today that felt like you?",
+    ],
+    flat: [
+      "What used to bring you joy that you\'ve drifted away from?",
+      "What\'s something small that still lights you up, even when you\'re flat?",
+      "What do you want your life to feel like? Does today reflect that?",
+      "What are you missing right now that\'s hard to name?",
+      "If you had a free afternoon with no obligations, what would feel good?",
+    ],
+    overwhelmed: [
+      "What actually matters to you right now, underneath all the noise?",
+      "What\'s one thing you\'d regret not doing or saying if things don\'t change?",
+      "What does your gut tell you that your head keeps overriding?",
+      "What would feel like enough, if you could let it be?",
+      "What are you holding onto that\'s no longer serving you?",
+    ],
+    notgreat: [
+      "What\'s one thing that still feels worth doing, even today?",
+      "If this period passes — and it will — what do you want to remember about it?",
+      "What small thing connected you to yourself recently?",
+      "What are you learning about yourself through this hard time?",
+      "What would it mean to be gentle with yourself today?",
+    ],
+  },
+};
+
+function getTodayPrompt() {
+  const dim = state.monthlyFocus || getDominantDimension() || 'mind';
+  const feeling = state.feeling || 'flat';
+  const feelingKey = ['good','flat','overwhelmed','notgreat'].includes(feeling) ? feeling : 'flat';
+  const prompts = (JOURNAL_PROMPTS[dim] && JOURNAL_PROMPTS[dim][feelingKey]) || JOURNAL_PROMPTS.mind.flat;
+  // Pick based on day of year so it rotates but is consistent for the day
+  const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return prompts[dayOfYear % prompts.length];
+}
+
+function getTodayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
+
+function saveJournalEntry(text) {
+  if (!state.journalEntries) state.journalEntries = [];
+  const key = getTodayKey();
+  const prompt = getTodayPrompt();
+  // Update or add today's entry
+  const existing = state.journalEntries.findIndex(e => e.date === key);
+  const entry = {date: key, prompt, text, dim: state.monthlyFocus || 'mind', feeling: state.feeling || 'flat'};
+  if (existing >= 0) {
+    state.journalEntries[existing] = entry;
+  } else {
+    state.journalEntries.unshift(entry);
+  }
+  // Keep last 365 entries
+  state.journalEntries = state.journalEntries.slice(0, 365);
+  saveState();
+}
+
+function getTodayEntry() {
+  if (!state.journalEntries) return null;
+  return state.journalEntries.find(e => e.date === getTodayKey()) || null;
+}
+
 // ============ NOTIFICATIONS ============
 function addNotification(message, type) {
   if (!state.notifications) state.notifications = [];
@@ -2311,9 +2618,13 @@ function getHabitPhase() {
 }
 
 function canAddHabit() {
-  const phase = getHabitPhase();
-  return phase < 3 && state.habits && state.habits.length < 3 &&
-    state.daysShowedUp >= (phase + 1) * 7;
+  if (!state.habits) return false;
+  const currentCount = state.habits.length;
+  if (currentCount >= 3) return false;
+  const maxStreak = Object.values(state.habitStreaks || {}).reduce((a,b) => Math.max(a,b), 0);
+  if (currentCount === 1 && maxStreak >= 3) return true;
+  if (currentCount === 2 && maxStreak >= 7) return true;
+  return false;
 }
 
 function renderHabitSection(content) {
@@ -2425,23 +2736,19 @@ function renderHabitSection(content) {
     if (state.habits.length < 3) {
       const addBtn = document.createElement('button');
       addBtn.className = 'add-habit-btn';
-      const daysNeeded = (state.habits.length + 1) * 7;
-      const canAdd = state.daysShowedUp >= daysNeeded;
+      const canAdd = canAddHabit();
+      const currentCount = state.habits.length;
+      const maxStreak = Object.values(state.habitStreaks || {}).reduce((a,b) => Math.max(a,b), 0);
+      const neededStreak = currentCount === 1 ? 3 : 7;
+      const toGo = Math.max(0, neededStreak - maxStreak);
       addBtn.disabled = !canAdd;
-      addBtn.textContent = canAdd ? '+ Add a new habit' : '+ Add a second habit after ' + daysNeeded + ' days showed up (' + Math.max(0, daysNeeded - state.daysShowedUp) + ' to go)';
+      addBtn.textContent = canAdd ? '+ Add a new habit' : '+ Unlock after ' + neededStreak + ' days in a row (' + toGo + ' to go)';
       if (canAdd) addBtn.onclick = () => showAddHabitModal();
       content.appendChild(addBtn);
     }
   }
 
-  // Daily wellbeing action
-  const wc = document.createElement('div');
-  wc.className = 'wellbeing-card';
-  wc.style.marginTop = '8px';
-  wc.innerHTML = '<p class="wc-label">✦ Today\'s action · Day ' + state.currentDay + '</p>'
-    + '<p class="wc-title">How are you showing up for yourself today?</p>'
-    + '<p class="wc-sub">Tap to see your daily action.</p>';
-  content.appendChild(wc);
+
 }
 
 function completeHabit(i) {
@@ -2454,6 +2761,7 @@ function completeHabit(i) {
     return;
   }
   state.completedHabitsToday[i] = true;
+  updateHabitStreaks();
   // If at least one habit done today, count the day
   if (!state.completedToday) {
     state.completedToday = true;
