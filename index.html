@@ -1471,11 +1471,13 @@ function goToMain(){
 }
 
 function getUnlockState(){
-  const restricted=(state.consecutiveMissed||0)>=3;
-  return{
-    selfOnly:state.currentDay<3,
-    innerRipple:state.currentDay>=3,
-    community:state.helpConfirmed&&!restricted,
+  const missed = state.consecutiveMissed || 0;
+  const restricted = missed >= 3;
+  const daysUp = state.daysShowedUp || 0;
+  return {
+    selfOnly: daysUp < 3,
+    innerRipple: daysUp >= 3,
+    community: state.helpConfirmed && !restricted,
     restricted,
   };
 }
@@ -1583,7 +1585,7 @@ function renderHomeTab(content,unlock){
   renderHabitSection(content);
   if(unlock.restricted) {
     const rb=document.createElement('div');rb.className='restriction-banner';
-    rb.innerHTML=`<div class="rb-title">⚠️ You've missed a few days</div><div class="rb-sub">Your community tabs have been paused. Show up for yourself again to re-unlock them. Your inner circle has been gently notified you might need a hand.</div>`;
+    rb.innerHTML='<div class="rb-title">⚠️ You\'ve missed a few days</div><div class="rb-sub">Your community tabs are paused. Tick your habit below to start coming back. Your inner circle has been gently notified you might need a hand.</div>';
     content.appendChild(rb);
   }
 
@@ -2843,11 +2845,13 @@ function completeHabit(i) {
     showMasteryPrompt(habit);
   }
   
+  // Reset missed counter whenever a habit is ticked
+  state.consecutiveMissed = 0;
+  
   // If at least one habit done today, count the day
   if (!state.completedToday) {
     state.completedToday = true;
     state.daysShowedUp = (state.daysShowedUp || 0) + 1;
-    state.consecutiveMissed = 0;
     if (state.allBitMuch) state.reentryMode = true;
     addNotification('Day ' + state.daysShowedUp + ' showed up for yourself. Keep going.', 'info');
   }
