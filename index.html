@@ -2662,7 +2662,12 @@ function canAddHabit() {
   if (!state.habits) return false;
   const currentCount = state.habits.length;
   if (currentCount >= 3) return false;
-  const maxStreak = Object.values(state.habitStreaks || {}).reduce((a,b) => Math.max(a,b), 0);
+  // Never allow adding if no days showed up yet
+  if (!state.daysShowedUp || state.daysShowedUp === 0) return false;
+  const streaks = state.habitStreaks || {};
+  const maxStreak = Object.keys(streaks).length > 0 
+    ? Object.values(streaks).reduce((a,b) => Math.max(a,b), 0) 
+    : 0;
   if (currentCount === 1 && maxStreak >= 3) return true;
   if (currentCount === 2 && maxStreak >= 7) return true;
   return false;
