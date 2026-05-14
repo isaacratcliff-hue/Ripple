@@ -2784,9 +2784,10 @@ function renderHabitSection(content) {
       addBtn.className = 'add-habit-btn';
       const canAdd = canAddHabit();
       const currentCount = state.habits.length;
-      const maxStreak = Object.values(state.habitStreaks || {}).reduce((a,b) => Math.max(a,b), 0);
+      const streaks = state.habitStreaks || {};
+      const maxStreak = Object.keys(streaks).length > 0 ? Object.values(streaks).reduce((a,b) => Math.max(a,b), 0) : 0;
       const neededStreak = currentCount === 1 ? 3 : 7;
-      const toGo = Math.max(0, neededStreak - maxStreak);
+      const toGo = neededStreak - maxStreak;
       addBtn.disabled = !canAdd;
       addBtn.textContent = canAdd ? '+ Add a new habit' : '+ Unlock after ' + neededStreak + ' days in a row (' + toGo + ' to go)';
       if (canAdd) addBtn.onclick = () => showAddHabitModal();
