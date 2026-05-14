@@ -1538,47 +1538,40 @@ function renderMain(){
 }
 
 function changeDay(delta){
-  const oldDay = state.currentDay;
   state.currentDay = Math.max(1, Math.min(60, state.currentDay + delta));
   
-  // Simulate habit completion for each day forward
-  if (delta > 0 && state.habits && state.habits.length > 0) {
-    if (!state.habitStreaks) state.habitStreaks = {};
-    state.habits.forEach((habit, i) => {
-      const key = 'habit_' + i;
-      state.habitStreaks[key] = (state.habitStreaks[key] || 0) + 1;
-    });
-    state.daysShowedUp = (state.daysShowedUp || 0) + 1;
-    state.completedToday = true;
-    state.consecutiveMissed = 0;
+  if (delta > 0) {
+    // Moving forward — check if habits were completed today before resetting
+    const allDone = state.habits && state.habits.length > 0 && 
+      state.habits.every((h, i) => state.completedHabitsToday && state.completedHabitsToday[i]);
     
-    // Check unlock phase
-    const maxStreak = Math.max(...Object.values(state.habitStreaks));
-    if (maxStreak >= 7 && state.habits.length < 3) {
-      state.habitUnlockPhase = 3;
-    } else if (maxStreak >= 3 && state.habits.length < 2) {
-      state.habitUnlockPhase = 2;
+    if (!allDone && state.completedToday) {
+      // Some habits done — still count the day but not full streak
+      state.consecutiveMissed = 0;
+    } else if (!state.completedToday) {
+      // Nothing done — missed day
+      state.consecutiveMissed = (state.consecutiveMissed || 0) + 1;
+      if (state.habitStreaks) {
+        Object.keys(state.habitStreaks).forEach(k => {
+          state.habitStreaks[k] = 0; // Reset streak on missed day
+        });
+      }
     }
     
-    // Check mastery at 21
-    state.habits.forEach((habit, i) => {
-      const key = 'habit_' + i;
-      if ((state.habitStreaks[key] || 0) === 21) {
-        if (!state.masteredHabits) state.masteredHabits = [];
-        state.masteredHabits.unshift({...habit, masteredAt: new Date().toISOString()});
-        state.habits.splice(i, 1);
-        delete state.habitStreaks[key];
-        showMasteryPrompt(habit);
-      }
-    });
+    // Reset for new day
+    state.completedHabitsToday = {};
+    state.completedToday = false;
+    
   } else if (delta < 0) {
-    // Going back — reduce streaks
+    // Going back — reset completions
+    state.completedHabitsToday = {};
+    state.completedToday = false;
+    state.daysShowedUp = Math.max(0, (state.daysShowedUp || 0) - 1);
     if (state.habitStreaks) {
       Object.keys(state.habitStreaks).forEach(k => {
         state.habitStreaks[k] = Math.max(0, (state.habitStreaks[k] || 0) - 1);
       });
     }
-    state.daysShowedUp = Math.max(0, (state.daysShowedUp || 0) - 1);
   }
   if(state.currentDay<3)state.activeTab='home';
   saveState();
@@ -2833,7 +2826,23 @@ function completeHabit(i) {
     return;
   }
   state.completedHabitsToday[i] = true;
-  updateHabitStreaks();
+  
+  // Update this habit's streak
+  if (!state.habitStreaks) state.habitStreaks = {};
+  const key = 'habit_' + i;
+  state.habitStreaks[key] = (state.habitStreaks[key] || 0) + 1;
+  
+  // Check mastery at 21 consecutive days
+  if (state.habitStreaks[key] >= 21) {
+    const habit = state.habits[i];
+    if (!state.masteredHabits) state.masteredHabits = [];
+    state.masteredHabits.unshift({...habit, masteredAt: new Date().toISOString()});
+    state.habits.splice(i, 1);
+    delete state.habitStreaks[key];
+    saveState();
+    showMasteryPrompt(habit);
+  }
+  
   // If at least one habit done today, count the day
   if (!state.completedToday) {
     state.completedToday = true;
