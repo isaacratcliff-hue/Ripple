@@ -1538,7 +1538,48 @@ function renderMain(){
 }
 
 function changeDay(delta){
-  state.currentDay=Math.max(1,Math.min(30,state.currentDay+delta));
+  const oldDay = state.currentDay;
+  state.currentDay = Math.max(1, Math.min(60, state.currentDay + delta));
+  
+  // Simulate habit completion for each day forward
+  if (delta > 0 && state.habits && state.habits.length > 0) {
+    if (!state.habitStreaks) state.habitStreaks = {};
+    state.habits.forEach((habit, i) => {
+      const key = 'habit_' + i;
+      state.habitStreaks[key] = (state.habitStreaks[key] || 0) + 1;
+    });
+    state.daysShowedUp = (state.daysShowedUp || 0) + 1;
+    state.completedToday = true;
+    state.consecutiveMissed = 0;
+    
+    // Check unlock phase
+    const maxStreak = Math.max(...Object.values(state.habitStreaks));
+    if (maxStreak >= 7 && state.habits.length < 3) {
+      state.habitUnlockPhase = 3;
+    } else if (maxStreak >= 3 && state.habits.length < 2) {
+      state.habitUnlockPhase = 2;
+    }
+    
+    // Check mastery at 21
+    state.habits.forEach((habit, i) => {
+      const key = 'habit_' + i;
+      if ((state.habitStreaks[key] || 0) === 21) {
+        if (!state.masteredHabits) state.masteredHabits = [];
+        state.masteredHabits.unshift({...habit, masteredAt: new Date().toISOString()});
+        state.habits.splice(i, 1);
+        delete state.habitStreaks[key];
+        showMasteryPrompt(habit);
+      }
+    });
+  } else if (delta < 0) {
+    // Going back — reduce streaks
+    if (state.habitStreaks) {
+      Object.keys(state.habitStreaks).forEach(k => {
+        state.habitStreaks[k] = Math.max(0, (state.habitStreaks[k] || 0) - 1);
+      });
+    }
+    state.daysShowedUp = Math.max(0, (state.daysShowedUp || 0) - 1);
+  }
   if(state.currentDay<3)state.activeTab='home';
   saveState();
   renderMain();
@@ -1553,9 +1594,9 @@ function renderHomeTab(content,unlock){
     content.appendChild(rb);
   }
 
-  const wc=document.createElement('div');wc.className='wellbeing-card';
-  wc.innerHTML=`<p class="wc-label">✦ Just for you · Day ${state.currentDay}</p><p class="wc-title">How are you showing up for yourself today?</p><p class="wc-sub">Your daily action is ready. One small thing, just for you.</p>`;
-  content.appendChild(wc);
+  // Journal card
+  renderJournalCard(content);
+
 
   if(!unlock.innerRipple){
     const daysLeft=3-state.currentDay;
