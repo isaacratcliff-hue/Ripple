@@ -6,7 +6,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Ripple</title>
+<title>Ripple v14</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -854,7 +854,7 @@
           </svg>
           <div id="notif-badge" style="display:none;position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--warning);border-radius:50%;font-size:9px;font-weight:700;color:#fff;align-items:center;justify-content:center;font-family:DM Sans,sans-serif;">0</div>
         </div>
-        <div class="streak-badge"><span class="streak-badge-num" id="streak-num">1</span><span class="streak-badge-label">day streak</span></div>
+        <div class="streak-badge"><span class="streak-badge-num" id="streak-num">1</span><span class="streak-badge-label">days showed up</span></div>
       </div>
     </div>
     <div class="tab-bar" id="tab-bar"></div>
@@ -873,7 +873,7 @@
     <p class="profile-tagline" id="p-location">South Perth · Member since today</p>
     <div class="streak-card">
       <div class="streak-num" id="p-streak">1</div>
-      <div><div class="streak-title">Day streak</div><div class="streak-sub">Keep showing up</div></div>
+      <div><div class="streak-title">Days showed up for yourself</div><div class="streak-sub">Total days you showed up for yourself</div></div>
     </div>
     <div class="stats-row">
       <div class="stat-card"><div class="stat-val" id="p-events">0</div><div class="stat-label">Events</div></div>
@@ -1518,7 +1518,7 @@ function renderMain(){
   // Check for new notifications
   setTimeout(checkNotifications, 500);
   setTimeout(updateNotificationBadge, 600);
-  document.getElementById('streak-num').textContent=state.currentDay;
+  document.getElementById('streak-num').textContent=state.daysShowedUp||0;
   renderTabs();
   const content=document.getElementById('main-content');
   content.innerHTML='';
@@ -1545,12 +1545,9 @@ function changeDay(delta){
 }
 
 function renderHomeTab(content,unlock){
-  // DEBUG
-  const _d=document.createElement('div');
-  _d.style.cssText='background:#111;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:#aaa;word-break:break-all;';
-  _d.textContent='habits='+JSON.stringify(state.habits||[])+'|feeling='+state.feeling;
-  content.appendChild(_d);
-  if(unlock.restricted){
+  // Render habit section
+  renderHabitSection(content);
+  if(unlock.restricted) {
     const rb=document.createElement('div');rb.className='restriction-banner';
     rb.innerHTML=`<div class="rb-title">⚠️ You've missed a few days</div><div class="rb-sub">Your community tabs have been paused. Show up for yourself again to re-unlock them. Your inner circle has been gently notified you might need a hand.</div>`;
     content.appendChild(rb);
@@ -1811,7 +1808,7 @@ function renderProfile(){
     const locEl = document.getElementById('p-location');
     if(locEl) locEl.after(refCard);
   }
-  document.getElementById('p-streak').textContent=state.currentDay;
+  document.getElementById('p-streak').textContent=state.daysShowedUp||0;
   document.getElementById('p-helped').textContent=state.helpConfirmed?'1':'0';
 
   // Monthly focus card
