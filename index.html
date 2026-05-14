@@ -1545,11 +1545,11 @@ function changeDay(delta){
     const allDone = state.habits && state.habits.length > 0 && 
       state.habits.every((h, i) => state.completedHabitsToday && state.completedHabitsToday[i]);
     
-    if (!allDone && state.completedToday) {
-      // Some habits done — still count the day but not full streak
+    if (state.completedToday) {
+      // At least one habit done — reset missed counter
       state.consecutiveMissed = 0;
-    } else if (!state.completedToday) {
-      // Nothing done — missed day
+    } else if (!state.completedToday && (state.daysShowedUp || 0) > 0) {
+      // Nothing done today AND user has shown up before — count as missed
       state.consecutiveMissed = (state.consecutiveMissed || 0) + 1;
       if (state.habitStreaks) {
         Object.keys(state.habitStreaks).forEach(k => {
